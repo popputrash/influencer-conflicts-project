@@ -1,5 +1,5 @@
 ; ********************************************************************************************************************************************************
-;***          AGENTA.NLS  (contains all the code for the agentA)                                                                                    ****
+;***          AGENTC.NLS  (contains all the code for the agentC)                                                                                    ****
 ;*********************************************************************************************************************************************************
 ; DESCRIPTION OF THE AGENT
 ; - Lives in one of the houses upon creation.
@@ -17,7 +17,7 @@
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; LOCAL VARIABLES
-agentAs-own [
+agentCs-own [
   ; some examples of possible local variables, -replace with your own
   
   nearbyAgents;---List of the agents nearby
@@ -42,10 +42,10 @@ agentAs-own [
 ;******************* end local variables *****************************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; SETUP FUNCTIONS
-to setup-agentAs
+to setup-agentCs
   ; example of create-agent-function, replace with your own code!
   
-  create-agentAs Number_AgentA [; Number_AgentA from slider
+  create-agentCs Number_AgentC [; Number_AgentC from slider
       set label who
       set shape "person" 
       set size 1
@@ -64,14 +64,14 @@ to setup-agentAs
       set moveFlag true
     ]
     
-end ;setup-agentAs
+end ;setup-agentCs
 
 
 ;***************************end setup functions ******************************************************************************************************************
 ;************************************************************************************************************************************************************
 ; UPDATE information about the agent's environment
 
-to updateEnvironmentInfo_agentAs 
+to updateEnvironmentInfo_agentCs 
   
   set friend []  
   
@@ -118,25 +118,25 @@ to updateEnvironmentInfo_agentAs
   set localxy patch-here
   
 
-end ;updateEnvironmentInfo_agentAs
+end ;updateEnvironmentInfo_agentCs
 ;***************************end update environment information ******************************************************************************************************************
 ;************************************************************************************************************************************************************
 ; REACTIVE SUBSUMPTION HIERARCHY
-to reactive_agentAs
-  ; override updateEnvironmentInfo_agentAs by testcase-procedure
-   if activateTestCase [override_agentASetup] ; this overrides the flags for following and moving around 
+to reactive_agentCs
+  ; override updateEnvironmentInfo_agentCs by testcase-procedure
+   if activateTestCase [override_agentCSetup] ; this overrides the flags for following and moving around 
   
   ; highest priority: move freely around
-  ifelse moveFlag [ moveAround_agentA]
+  ifelse moveFlag [ moveAround_agentC]
   [ifelse followFlag [followAgent]
     [; unknown case, print message
-      if Debug [print (word "agentA with id: " who " is not walking around and not following a friend")]
+      if Debug [print (word "agentC with id: " who " is not walking around and not following a friend")]
     ]
   ]
-end ;reactive_agentAs
+end ;reactive_agentCs
 
 ;---- specific reactive intention functions
-to moveAround_agentA
+to moveAround_agentC
   rt random 50
   lt random 50
   fd 1
@@ -150,7 +150,7 @@ to followAgent
   if (([list xcor ycor] of self) != ([list xcor ycor] of followFriend)) [; avoids error of not being able to use heading on same position
     set heading (towards followFriend) ;face in direction of the friend-problem if on same patch
     fd 1
-    if Debug [print (word "agentA with id: " who " is following a friend with id: " followFriend)]
+    if Debug [print (word "agentC with id: " who " is following a friend with id: " followFriend)]
     ; break the connection if in 'sanctuary'
     if (region = "sanctuary") [
       ;set the agent somwhere else and let it move freely again
@@ -159,7 +159,7 @@ to followAgent
       set followFlag false
       set moveFlag true
       set followFriend []
-      if Debug [print (word "agentA with id: " who " is being replaced away from 'sanctuary'")]
+      if Debug [print (word "agentC with id: " who " is being replaced away from 'sanctuary'")]
     ]
   ] 
 end
