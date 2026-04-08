@@ -1,0 +1,65 @@
+; ********************************************************************************************************************************************************
+;***          ENVIRONMENT.NLS  (contains all the code for the environment)                                                                                    ****
+;*********************************************************************************************************************************************************
+;*********************************************************************************************************************************************************
+; LOGBOOK OF UPDATES IN THIS FILE
+; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
+; 20250423    Initial template of a dummy-breed to be adapted by the project group                               Gion
+;
+;
+;
+;********************end logbook ************************************************************************************************************************
+;*********************************************************************************************************************************************************
+; VARIABLES OF PATCHES
+patches-own [
+  neighborhood        ; surrounding patches within the vision radius
+  region              ; used for identification of different regions
+]
+;****************** end variables of patches **************************************************************************************************************
+;***********************************************************************************************************************************************************
+; SETUP ENVIRONMENT
+;---- General setup of the model and the regions
+;- use Model Settings under 'Interface'->'Settings...'
+;
+; World
+; location of origin: Corner
+; Bottom Left
+; min-pxcor: 0 (minimum x coordinate for patches)
+; max-pxcor: 66 (maximum x coordinate for patches)
+; min-pycor: 0 (minimum y coordinate for patches)
+; max-pycor: 33 (maximum y coordinate for patches)
+; X world wraps horizontally
+; X world wraps vertically
+; View
+; Patch size: 22.12
+; Font size: 10
+; Frame rate: 30
+;
+; X show tick counter
+; Tick counter label: ticks
+;-------------------------------------------------
+to setup-environment
+  ; setup of all patches
+    ask patches [
+    set region "empty"
+    set neighborhood patches in-radius 2
+  ]
+    ; create sanctuary
+    ask patches with [
+      pxcor >= (max-pxcor / 4) * 3 - 4 and
+      pxcor < (max-pxcor / 4) * 3 + 4 and
+      pycor >= (max-pycor / 4) * 3 - 4 and
+      pycor < (max-pycor / 4) * 3 + 4
+  ][ set pcolor cyan
+    set region "sanctuary"]
+  ask one-of patches with [region = "sanctuary"]
+    [set plabel region]
+  
+  
+    ;create 10 houses
+    let emptyPatches patches with [region = "empty"]
+    ask n-of 10 emptyPatches [
+      set region "house"
+      set pcolor 74
+    ] 
+end ;setup-environment

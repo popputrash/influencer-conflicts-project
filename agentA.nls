@@ -1,0 +1,179 @@
+; ********************************************************************************************************************************************************
+;***          AGENTA.NLS  (contains all the code for the agentA)                                                                                    ****
+;*********************************************************************************************************************************************************
+; DESCRIPTION OF THE AGENT
+; - Lives in one of the houses upon creation.
+; - Moves around to find friends. If it meets another agent it saves a reference to the agent in the 'friendList'.
+; - Once friendList contains fmax friends, the agent stops adding other agents to the list, instead it checks if agents that it meets are in their friendList
+; - if another agent is in the friendList it starts following that friend
+;
+;*********************************************************************************************************************************************************
+; LOGBOOK OF UPDATES IN THIS FILE
+; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
+; 20260307    Initial template of a dummy-breed to be adapted by the project group                               Gion
+;
+;
+;
+;********************end logbook ************************************************************************************************************************
+;*********************************************************************************************************************************************************
+; LOCAL VARIABLES
+agentAs-own [
+  ; some examples of possible local variables, -replace with your own
+  
+  nearbyAgents;---List of the agents nearby
+  vision;---------how long nearby is defined as
+  fmax;-----------maximum members of friends
+  friend;---------potential friend to add or follow
+  followFriend;---selected friend to follow
+  friendList;-----agent set of other citizen agents that are considered as friends
+  friends;--------list with numbers of agents (same as friendList, but as a sorted list)
+  
+  moveFlag;-------Flag to indicate the situation of moving freely around
+  followFlag;-----Flag to indicate the situation of following a friend
+  
+  
+  homeLoc;------------home location, where the agent lives
+  localxy;------------current local patch on which the agent is standing on
+  
+  agTimer1;---------- local timer for agents
+  ;TimerX
+  agAlarm1;
+]
+;******************* end local variables *****************************************************************************************************************
+;**********************************************************************************************************************************************************
+; SETUP FUNCTIONS
+to setup-agentAs
+  ; example of create-agent-function, replace with your own code!
+  
+  create-agentAs Number_AgentA [; Number_AgentA from slider
+      set label who
+      set shape "person" 
+      set size 1
+      set color white
+      move-to one-of patches with [region = "house"]
+      ; save the home location
+      set homeLoc patch-here
+      ;setxy [pxcor] of homeLoc [pycor] of homeLoc 
+      set friend []
+      set followFriend []
+      set friendList turtle-set []
+      set vision 2
+      set fmax 7
+      ; initial values of flags
+      set followFlag false 
+      set moveFlag true
+    ]
+    
+end ;setup-agentAs
+
+
+;***************************end setup functions ******************************************************************************************************************
+;************************************************************************************************************************************************************
+; UPDATE information about the agent's environment
+
+to updateEnvironmentInfo_agentAs 
+  
+  set friend []  
+  
+  ; update information about other agents nearby
+  set nearbyAgents other turtles in-radius vision
+  if any? nearbyAgents [
+    set friend min-one-of nearbyAgents [distance myself]; identify the agent that is nearest
+    ; make sure friend is not the agent itself
+    if not (friend = self) [; only bother if it is not myself
+                            ; if the list of friends is empty, add the agent
+      ifelse (not any? turtle-set friendList) [set friendList friend]
+      ;ifelse (empty? friendList) [set friendList friend]
+      [
+        ; if not already following a friend and member of the list of friends and less than fmax friends - add to the list of friends
+        ;ifelse (length friendList < fmax) 
+        if (not followFlag) [; not already following a friend
+          ifelse (count turtle-set friendList < fmax) 
+          [
+            ;add the friend to the friendList
+            ;set friendList lput friend friendList
+            set friendList (turtle-set friend friendList)
+            set friends sort friendList
+            set moveFlag true ; flag to indicate the case of free moving around      
+          ]
+          [ ; check if the friend is in the friendList, if yes follow that agent
+            ifelse (member? friend friendList)
+            [; is member, follow it
+              set followFlag true
+              set moveFlag false
+              set followFriend friend
+              ;if Debug [print (word "friend: " friend "friends: " friends)]
+            ]
+            [; not a member, do not follow
+              set moveFlag true
+              set followFlag false
+            ]
+          ]
+        ]  
+      ]
+    ]  
+  ]
+  
+  ;--- save local position
+  set localxy patch-here
+  
+
+end ;updateEnvironmentInfo_agentAs
+;***************************end update environment information ******************************************************************************************************************
+;************************************************************************************************************************************************************
+; REACTIVE SUBSUMPTION HIERARCHY
+to reactive_agentAs
+  ; override updateEnvironmentInfo_agentAs by testcase-procedure
+   if activateTestCase [override_agentASetup] ; this overrides the flags for following and moving around 
+  
+  ; highest priority: move freely around
+  ifelse moveFlag [ moveAround_agentA]
+  [ifelse followFlag [followAgent]
+    [; unknown case, print message
+      if Debug [print (word "agentA with id: " who " is not walking around and not following a friend")]
+    ]
+  ]
+end ;reactive_agentAs
+
+;---- specific reactive intention functions
+to moveAround_agentA
+  rt random 50
+  lt random 50
+  fd 1
+  ; make sure the agent moves to empty region within its neighborhood
+  if not (region = "empty" or region = "sanctuary") [
+    let footstep neighborhood with [region = "empty"] 
+    if any? footstep [move-to one-of footstep]]
+end
+
+to followAgent
+  if (([list xcor ycor] of self) != ([list xcor ycor] of followFriend)) [; avoids error of not being able to use heading on same position
+    set heading (towards followFriend) ;face in direction of the friend-problem if on same patch
+    fd 1
+    if Debug [print (word "agentA with id: " who " is following a friend with id: " followFriend)]
+    ; break the connection if in 'sanctuary'
+    if (region = "sanctuary") [
+      ;set the agent somwhere else and let it move freely again
+      let places neighborhood with [region = "empty"]
+      if any? places [move-to one-of places]
+      set followFlag false
+      set moveFlag true
+      set followFriend []
+      if Debug [print (word "agentA with id: " who " is being replaced away from 'sanctuary'")]
+    ]
+  ] 
+end
+
+;***************************end reactive subsumption hierarchy ***************************************************************************************************
+;************************************************************************************************************************************************************
+
+
+
+;*****************************************************************************************************************************************************
+; HELP FUNCTIONS
+
+
+
+;***************************end help functions ***************************************************************************************************
+;*****************************************************************************************************************************************************
+
