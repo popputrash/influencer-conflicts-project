@@ -14,18 +14,5 @@
 ;-------------------------------------------------------------------------------------------------------------------------------------------------------
 ; reporters used in the plot function by the monitor-windows 
 
-; reporter to calculate the number of free moving agentAs
-to-report movingAgentAs
-  let mvA (count agentAs with [moveFlag = true])
-  report mvA
-end
-
-
-
-; reporter to calculate the number of free moving agentBs
-to-report movingAgentBs
-  let mvB (count agentBs with [state = "State_MoveAround"])
-  report mvB
-end
 
 ;--------------------------------------------------------- end reporters used in the plot functions --------------------------------------------------

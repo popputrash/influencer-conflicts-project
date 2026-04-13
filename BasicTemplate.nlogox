@@ -67,17 +67,19 @@ to setup
   setup-environment ;
 
   ;-------- setup agentAs--------------:
-  setup-agentAs ; code defined in the include-file "agentAs.nls
+   ; code defined in the include-file "agentAs.nls
 
   ;-------- setup agentBs--------------:
   setup-agentBs ; code defined in the include-file "agentBs.nls
   
+  setup-agentAs
+  
   ;-------- setup test cases
-  if activateTestCase [setup-testagents]; code defined in the include-file "testcases.nls
+  ;if activateTestCase [setup-testagents]; code defined in the include-file "testcases.nls
     
 
   ;-------- initialize time
-  initTime ; initialize the time and clock variables
+   ; initialize the time and clock variables
   set weeklyFlag false
   set dailyFlag false
 
@@ -110,20 +112,30 @@ to go
   ;in which agentAs always are executed first and their actions will dominate the simulation.
   ;This way the order of events will change between the agents
   ask turtles [
-    if (breed = agentAs) [
-      ;--update information ----
-      updateEnvironmentInfo_agentAs ; code defined in the include-file "agentAs.nls
-      ;-- reactive behavior with susbsumption hierarchy
-      reactive_agentAs; code defined in the include-file "agentAs.nls
-      ]
-    
+
       if (breed = agentBs) [
        ;--update beliefs ----
       updateEnvironmentInfo_agentBs ; code as defined in the include-file "agentBs.nls
       ;-- reactive behavior with finite state machien
-      run state; code defined in the include-file "agentBs.nls
+      reactive_agentBs; code defined in the include-file "agentBs.nls
       ]
+        if (breed = agentAs) [
+      ;--update information ----
+      sense-environment_agentAs ; code defined in the include-file "agentAs.nls
+      ;-- reactive behavior with susbsumption hierarchy
+      reactive_agentAs; code defined in the include-file "agentAs.nls
+      ]
+    
    ]
+  
+  ask turtles [
+        if (breed = agentA)[
+      update-visualization_agentA
+    ]
+    
+  ]
+  
+  
 ;------- end agents ------------------
 
  ; ####################### OBSERVER FUNCTIONS ##############################
@@ -158,7 +170,7 @@ end ; - to go part
 ;***************************end to go part ******************************************************************************************************************
 ;************************************************************************************************************************************************************]]></code>
   <widgets>
-    <view x="646" wrappingAllowedX="true" y="21" frameRate="60.0" minPycor="0" height="599" showTickCounter="true" patchSize="17.5224" fontSize="10" wrappingAllowedY="true" width="1178" tickCounterLabel="ticks" maxPycor="33" updateMode="0" maxPxcor="66" minPxcor="0"></view>
+    <view x="646" wrappingAllowedX="false" y="21" frameRate="60.0" minPycor="0" height="599" showTickCounter="true" patchSize="17.5224" fontSize="10" wrappingAllowedY="false" width="1178" tickCounterLabel="ticks" maxPycor="33" updateMode="0" maxPxcor="66" minPxcor="0"></view>
     <note x="1594" y="652" backgroundDark="0" fontSize="13" width="240" markdown="false" height="27" textColorDark="-1" textColorLight="-16777216" backgroundLight="0">_________ Simulation Recorder________</note>
     <button x="1592" y="680" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="67" display="start">start-recorder</button>
     <button x="1593" y="726" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="68" display="reset">reset-recorder</button>
@@ -168,12 +180,13 @@ end ; - to go part
       <choice type="string" value="Only View"></choice>
       <choice type="string" value="With Interface"></choice>
     </chooser>
-    <button x="543" y="24" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="67" display="setup">setup</button>
+    <button x="543" y="24" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="67" display="setup">setup
+</button>
     <button x="543" y="78" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="63" display="go">go</button>
     <switch x="463" y="498" height="40" on="false" variable="show-intentions" width="161" display="show-intentions"></switch>
-    <switch x="462" y="562" height="40" on="false" variable="show_messages" width="165" display="show_messages"></switch>
+    <switch x="462" y="562" height="40" on="true" variable="show_messages" width="165" display="show_messages"></switch>
     <switch x="466" y="435" height="40" on="false" variable="ActivateTestCase" width="123" display="ActivateTestCase"></switch>
-    <switch x="467" y="380" height="40" on="false" variable="Debug" width="69" display="Debug"></switch>
+    <switch x="467" y="380" height="40" on="true" variable="Debug" width="69" display="Debug"></switch>
     <plot x="89" autoPlotX="true" yMax="1.0" autoPlotY="true" y="33" xMin="0.0" height="175" legend="true" xMax="1.0" yMin="0.0" width="230" xAxis="time" display="Number of friends followed by agentAs">
       <setup></setup>
       <update></update>
@@ -190,8 +203,8 @@ end ; - to go part
         <update>plot count agentBs with [region = "sanctuary"]</update>
       </pen>
     </plot>
-    <slider x="359" step="1" y="154" max="100" width="250" display="Number_AgentA" height="50" min="0" direction="Horizontal" default="36.0" variable="Number_AgentA"></slider>
-    <slider x="358" step="1" y="220" max="100" width="250" display="Number_AgentB" height="50" min="0" direction="Horizontal" default="17.0" variable="Number_AgentB"></slider>
+    <slider x="359" step="1" y="154" max="100" width="250" display="Number_AgentA" height="50" min="0" direction="Horizontal" default="5.0" variable="Number_AgentA"></slider>
+    <slider x="358" step="1" y="220" max="1000" width="250" display="Number_AgentB" height="50" min="0" direction="Horizontal" default="464.0" variable="Number_AgentB"></slider>
     <plot x="89" autoPlotX="true" yMax="10.0" autoPlotY="true" y="446" xMin="0.0" height="175" legend="true" xMax="10.0" yMin="0.0" width="230" display="Moving around agents">
       <setup></setup>
       <update></update>

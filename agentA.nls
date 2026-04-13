@@ -1,179 +1,335 @@
 ; ********************************************************************************************************************************************************
-;***          AGENTA.NLS  (contains all the code for the agentA)                                                                                    ****
+;***          AGENTA.NLS  (Influencer Agent - Reactive Decision-Making Based on Attention Dynamics)                                            ****
 ;*********************************************************************************************************************************************************
-; DESCRIPTION OF THE AGENT
-; - Lives in one of the houses upon creation.
-; - Moves around to find friends. If it meets another agent it saves a reference to the agent in the 'friendList'.
-; - Once friendList contains fmax friends, the agent stops adding other agents to the list, instead it checks if agents that it meets are in their friendList
-; - if another agent is in the friendList it starts following that friend
+; DESCRIPTION OF THE AGENT (REACTIVE ARCHITECTURE)
+; - An influencer agent that competes for follower attention in a social media ecosystem
+; - Makes reactive decisions based on follower count and engagement levels
+; - Creates conflicts when losing followers or engagement to regain attention
+; - Conflicts affect reputation, which in turn affects follower loyalty and retention
+; - Uses reactive rules: sense engagement/followers → detect trends → create conflict if needed
 ;
 ;*********************************************************************************************************************************************************
 ; LOGBOOK OF UPDATES IN THIS FILE
 ; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
-; 20260307    Initial template of a dummy-breed to be adapted by the project group                               Gion
-;
-;
+; 20260410    Implemented as influencer agent with attention-driven conflict creation                          Maximilian och Ivan
+; 20260307    Initial template provided                                                                        Gion
 ;
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
-; LOCAL VARIABLES
+; LOCAL VARIABLES (INFLUENCER STATE)
 agentAs-own [
-  ; some examples of possible local variables, -replace with your own
+  ; Perception and status variables
+  followerCount        ; current number of followers (agentB) following this influencer
+  engagementRadius     ; radius representing area of influence/engagement
+  engagementLevel      ; current engagement (followers in perception radius)
   
-  nearbyAgents;---List of the agents nearby
-  vision;---------how long nearby is defined as
-  fmax;-----------maximum members of friends
-  friend;---------potential friend to add or follow
-  followFriend;---selected friend to follow
-  friendList;-----agent set of other citizen agents that are considered as friends
-  friends;--------list with numbers of agents (same as friendList, but as a sorted list)
+  ; Reputation and history tracking
+  reputation           ; trust score (0-100), affects follower loyalty
+  followerHistory      ; list tracking recent follower counts for trend detection
+  engagementHistory    ; list tracking recent engagement levels
   
-  moveFlag;-------Flag to indicate the situation of moving freely around
-  followFlag;-----Flag to indicate the situation of following a friend
+  ; Conflict state
+  conflictActive       ; boolean: currently in conflict state?
+  conflictIntensity    ; current intensity of conflict (0-100)
+  conflictDuration     ; ticks remaining in active conflict
   
+  ; Decision thresholds
+  minEngagementThreshold    ; minimum acceptable engagement level
+  followerLossThreshold     ; rate of follower loss that triggers conflict
+  reputationDamagePerConflict ; reputation points lost per conflict
   
-  homeLoc;------------home location, where the agent lives
-  localxy;------------current local patch on which the agent is standing on
+  ticksSinceStableFollowing
+  followerLossRate
   
-  agTimer1;---------- local timer for agents
-  ;TimerX
-  agAlarm1;
+  ; Movement variables
+  moveSpeed            ; base speed of movement
+  targetX              ; x coordinate of movement target
+  targetY              ; y coordinate of movement target
 ]
 ;******************* end local variables *****************************************************************************************************************
+
 ;**********************************************************************************************************************************************************
 ; SETUP FUNCTIONS
+
 to setup-agentAs
-  ; example of create-agent-function, replace with your own code!
-  
-  create-agentAs Number_AgentA [; Number_AgentA from slider
-      set label who
-      set shape "person" 
-      set size 1
-      set color white
-      move-to one-of patches with [region = "house"]
-      ; save the home location
-      set homeLoc patch-here
-      ;setxy [pxcor] of homeLoc [pycor] of homeLoc 
-      set friend []
-      set followFriend []
-      set friendList turtle-set []
-      set vision 2
-      set fmax 7
-      ; initial values of flags
-      set followFlag false 
-      set moveFlag true
-    ]
+  create-agentAs Number_AgentA [
+    set label who
+    set shape "star"
+    set size 2
+    set color yellow
     
-end ;setup-agentAs
+    ; Initialize influencer state
+    set followerCount 0              ; will count follower agents in setup
+    set engagementRadius 20          ; perception radius for engagement
+    set engagementLevel 0
+    
+    ; Initialize reputation system
+    set reputation 80                ; start with moderate-to-high reputation
+    set followerHistory []           ; empty history at start
+    set engagementHistory []
+    
+    ; Initialize conflict state
+    set conflictActive false
+    set conflictIntensity 0
+    set conflictDuration 0
+    
+    ; Set decision thresholds
+    set minEngagementThreshold 3     ; minimum followers within radius
+    set followerLossThreshold 0.1    ; lose >10% triggers conflict
+    set reputationDamagePerConflict 15
+    
+    set followerLossRate 0
+    set ticksSinceStableFollowing 0
+    
+    ; Initialize movement
+    set moveSpeed 0.5
+    set targetX random max-pxcor
+    set targetY random max-pycor
+    move-to patch targetX targetY
+  ]
+end
 
+;***************************end setup functions ***********************************************************
+;**********************************************************************************************************************************************************
+; UPDATE ENVIRONMENT INFORMATION (required by main model loop)
 
-;***************************end setup functions ******************************************************************************************************************
-;************************************************************************************************************************************************************
-; UPDATE information about the agent's environment
+to updateEnvironmentInfo_agentAs
+  ; Placeholder for compatibility with main model loop
+  ; Actual sensing happens in reactive_agentAs
+end
 
-to updateEnvironmentInfo_agentAs 
+;***************************end environment update *****************************************************
+
+;**********************************************************************************************************************************************************
+; REACTIVE SENSING: Perceive current status
+
+to sense-environment_agentAs
+  ; Count current followers (agentB agents that are following this influencer)
+  ; This assumes agentB has a "following" variable pointing to their influencer
+  set followerCount count agentBs with [following = myself]
   
-  set friend []  
+  ; Measure engagement (followers within engagement radius)
+  let myRadius engagementRadius
+  set engagementLevel count agentBs with [following = myself and distance myself <= myRadius]
   
-  ; update information about other agents nearby
-  set nearbyAgents other turtles in-radius vision
-  if any? nearbyAgents [
-    set friend min-one-of nearbyAgents [distance myself]; identify the agent that is nearest
-    ; make sure friend is not the agent itself
-    if not (friend = self) [; only bother if it is not myself
-                            ; if the list of friends is empty, add the agent
-      ifelse (not any? turtle-set friendList) [set friendList friend]
-      ;ifelse (empty? friendList) [set friendList friend]
-      [
-        ; if not already following a friend and member of the list of friends and less than fmax friends - add to the list of friends
-        ;ifelse (length friendList < fmax) 
-        if (not followFlag) [; not already following a friend
-          ifelse (count turtle-set friendList < fmax) 
-          [
-            ;add the friend to the friendList
-            ;set friendList lput friend friendList
-            set friendList (turtle-set friend friendList)
-            set friends sort friendList
-            set moveFlag true ; flag to indicate the case of free moving around      
-          ]
-          [ ; check if the friend is in the friendList, if yes follow that agent
-            ifelse (member? friend friendList)
-            [; is member, follow it
-              set followFlag true
-              set moveFlag false
-              set followFriend friend
-              ;if Debug [print (word "friend: " friend "friends: " friends)]
-            ]
-            [; not a member, do not follow
-              set moveFlag true
-              set followFlag false
-            ]
-          ]
-        ]  
+  ; Track history (keep last 5 ticks)
+  set followerHistory lput followerCount followerHistory
+  if length followerHistory > 5 [set followerHistory but-first followerHistory]
+  
+  set engagementHistory lput engagementLevel engagementHistory
+  if length engagementHistory > 5 [set engagementHistory but-first engagementHistory]
+  
+  if length followerHistory >= 2 [
+    let prev-followers item (length followerHistory - 2) followerHistory
+    if prev-followers > 0 [
+      set followerLossRate (prev-followers - followerCount) / prev-followers
+    ]
+  ]
+  
+   ifelse followerLossRate != 0 [
+        set ticksSinceStableFollowing 0
       ]
-    ]  
-  ]
+      [
+       set ticksSinceStableFollowing ticksSinceStableFollowing + 1 
+      ]
   
-  ;--- save local position
-  set localxy patch-here
-  
+end
 
-end ;updateEnvironmentInfo_agentAs
-;***************************end update environment information ******************************************************************************************************************
-;************************************************************************************************************************************************************
-; REACTIVE SUBSUMPTION HIERARCHY
+;***************************end sensing *******************************************************************
+
+;**********************************************************************************************************************************************************
+; REACTIVE DECISION HIERARCHY: Apply prioritized rules
+
 to reactive_agentAs
-  ; override updateEnvironmentInfo_agentAs by testcase-procedure
-   if activateTestCase [override_agentASetup] ; this overrides the flags for following and moving around 
+  ; Override by test case if needed
+  if activateTestCase [override_agentASetup]
   
-  ; highest priority: move freely around
-  ifelse moveFlag [ moveAround_agentA]
-  [ifelse followFlag [followAgent]
-    [; unknown case, print message
-      if Debug [print (word "agentA with id: " who " is not walking around and not following a friend")]
+  ; SENSE: Update current status
+  sense-environment_agentAs
+  
+  ; MOVE: Update position (agents can move while handling other behaviors)
+  move-agentA
+  
+  ; REACT & ACT: Apply prioritized decision rules
+  
+  ; PRIORITY 1: If in active conflict, continue conflict behavior and apply reputation damage
+  if conflictActive [
+    execute-conflict_agentA
+    update-visualization_agentA
+    stop
+  ]
+  
+  ; PRIORITY 2: Detect if engagement is critically low - trigger conflict
+  if engagementLevel < minEngagementThreshold and engagementLevel > 0 [
+    initiate-conflict_agentA "low-engagement"
+    update-visualization_agentA 
+    stop
+  ]
+  
+  ; PRIORITY 3: Detect follower loss trend - trigger conflict
+  if followerLossRate > followerLossThreshold and not conflictActive [
+    initiate-conflict_agentA "follower-loss"
+    update-visualization_agentA
+    stop
+  ]
+  
+  ; PRIORITY 4: Detect follower loss trend - trigger conflict
+  if ticksSinceStableFollowing > 200 [
+    initiate-conflict_agentA "stable following"
+    update-visualization_agentA 
+    stop
+  ]
+  
+  ; PRIORITY 5: Maintain normal behavior - recover reputation if not in conflict
+  maintain-status_agentA
+  update-visualization_agentA
+end
+
+;***************************end reactive decision hierarchy ****************************************************
+
+;**********************************************************************************************************************************************************
+; CONFLICT MECHANICS
+
+to initiate-conflict_agentA [conflict-reason]
+  ; Start a conflict to regain attention (only if not already in conflict)
+  if not conflictActive [
+    set conflictActive true
+    set conflictIntensity 70 + random 30          ; 70-100 intensity
+    set conflictDuration 5 + random 5             ; 5-10 ticks of active conflict
+    
+    ; Broadcast conflict event (for observer/followers to detect)
+    if Debug [print (word "Influencer " who " initiated conflict: " conflict-reason " at tick " ticks)]
+  ]
+end
+
+to execute-conflict_agentA
+  ; While in conflict state, reputation decays
+  set reputation reputation - reputationDamagePerConflict
+  if reputation < 0 [set reputation 0]
+  
+  ; Conflict duration decreases each tick
+  set conflictDuration conflictDuration - 1
+  
+  ; When conflict duration ends, return to normal
+  if conflictDuration <= 0 [
+    set conflictActive false
+    set conflictIntensity 0
+  ]
+end
+
+to maintain-status_agentA
+  ; Normal operations: reputation slowly recovers if not in conflict
+  if reputation < 80 [
+    set reputation reputation + 2
+  ]
+  
+  ; Reputation affects follower retention (followers leave with probability based on low reputation)
+  if reputation < 40 [
+    let departure-chance (1 - (reputation / 100)) * 0.1
+    ask agentBs with [following = myself and random-float 1 < departure-chance] [
+      set following nobody
     ]
   ]
-end ;reactive_agentAs
-
-;---- specific reactive intention functions
-to moveAround_agentA
-  rt random 50
-  lt random 50
-  fd 1
-  ; make sure the agent moves to empty region within its neighborhood
-  if not (region = "empty" or region = "sanctuary") [
-    let footstep neighborhood with [region = "empty"] 
-    if any? footstep [move-to one-of footstep]]
 end
 
-to followAgent
-  if (([list xcor ycor] of self) != ([list xcor ycor] of followFriend)) [; avoids error of not being able to use heading on same position
-    set heading (towards followFriend) ;face in direction of the friend-problem if on same patch
-    fd 1
-    if Debug [print (word "agentA with id: " who " is following a friend with id: " followFriend)]
-    ; break the connection if in 'sanctuary'
-    if (region = "sanctuary") [
-      ;set the agent somwhere else and let it move freely again
-      let places neighborhood with [region = "empty"]
-      if any? places [move-to one-of places]
-      set followFlag false
-      set moveFlag true
-      set followFriend []
-      if Debug [print (word "agentA with id: " who " is being replaced away from 'sanctuary'")]
+;***************************end conflict mechanics ************************************************************
+
+;**********************************************************************************************************************************************************
+; MOVEMENT FUNCTIONS
+
+to move-agentA
+  ifelse conflictActive [
+    ; During conflict: move toward followers to regain attention + move erratically
+    move-conflict-behavior
+  ] [
+    ; Normal behavior: move toward random targets
+    move-normal-behavior
+  ]
+end
+
+to move-normal-behavior
+  ; Pick a new target occasionally (every 20 ticks or when close to current target)
+  if ticks mod 20 = 0 or distance patch targetX targetY < 2 [
+    set targetX random max-pxcor
+    set targetY random max-pycor
+  ]
+  
+  ; Move towards target
+  let destination patch targetX targetY
+  set heading towards destination
+  forward moveSpeed
+end
+
+to move-conflict-behavior
+  ; During conflict, try to move toward nearest followers to regain attention
+  let nearby-followers agentBs with [following = myself and distance myself < 30]
+  
+  ifelse any? nearby-followers [
+    ; Move toward the center of nearby followers (to regain attention)
+    let nearest-follower min-one-of nearby-followers [distance myself]
+    set heading towards nearest-follower
+    forward moveSpeed * 1.2  ; Move faster toward followers during conflict
+  ] [
+    ; If no nearby followers, move toward any follower
+    let any-follower one-of agentBs with [following = myself]
+    if any-follower != nobody [
+      set heading towards any-follower
+      forward moveSpeed * 1.2
     ]
-  ] 
+  ]
+  
+  ; Add erratic movement: random turns make movement less predictable
+  rt random 40
+  lt random 40
+  forward moveSpeed * 0.5  ; Additional erratic movement
 end
 
-;***************************end reactive subsumption hierarchy ***************************************************************************************************
-;************************************************************************************************************************************************************
+;***************************end movement functions **********************************************************
 
+;**********************************************************************************************************************************************************
+; ACTION EXECUTION: Visual feedback and state updates
 
+to update-visualization_agentA
+  ; Update color based on reputation
+  
+  (ifelse reputation > 70 [
+    set color yellow
+  ] 
+    reputation > 50 [
+      set color orange
+    ])
+  
+  ; Pulse size during conflict to show activity
+  ifelse conflictActive [
+    set color red
+  ] [
+    set size 2 + (followerCount / 100)
+  ]
+end
 
-;*****************************************************************************************************************************************************
-; HELP FUNCTIONS
+;***************************end action execution ************************************************************
 
+;**********************************************************************************************************************************************************
+; TEST CASE SUPPORT
 
+to override_agentASetup
+  ; Placeholder for test case overrides
+  ; Can be extended to force specific conflict states for testing
+end
 
-;***************************end help functions ***************************************************************************************************
-;*****************************************************************************************************************************************************
+;***************************end test case support ************************************************************
 
+;**********************************************************************************************************************************************************
+; REPORTER FUNCTIONS: Provide observable metrics for monitoring
+
+to-report get-influencer-status
+  ; Returns a list of status information: [follower-count engagement reputation conflict-active]
+  report (list followerCount engagementLevel reputation conflictActive)
+end
+
+to-report get-conflict-intensity
+  ; Returns current conflict intensity for visualization
+  report conflictIntensity
+end
+
+;***************************end reporter functions *************************************************************

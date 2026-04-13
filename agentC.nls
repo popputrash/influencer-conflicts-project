@@ -146,7 +146,7 @@ to moveAround_agentC
     if any? footstep [move-to one-of footstep]]
 end
 
-to followAgent
+to followAgent_c
   if (([list xcor ycor] of self) != ([list xcor ycor] of followFriend)) [; avoids error of not being able to use heading on same position
     set heading (towards followFriend) ;face in direction of the friend-problem if on same patch
     fd 1

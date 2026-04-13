@@ -1,220 +1,163 @@
 ; ********************************************************************************************************************************************************
-;***          agentB.NLS  (contains all the code for the agentB)                                                                                    ****
+;***          agentB.NLS  (Basic Follower Agent - Follows Influencers)                                                                             ****
 ;*********************************************************************************************************************************************************
 ; DESCRIPTION OF THE AGENT
-; - Lives in one of the houses upon creation.
-; - Moves around freely without a specific purpose
-; - It checks if it might be followed by other agents by looking behind its back.
-; - If it believes that it is being followed, it stops and waits to see if the same agent remains close by.
-; - If that is the case it identifies the other agent as stalker and tries to escape by running to the sanctuary place.
-; - Once within sanctuary, it moves around there without leaving sanctuary.
+; - A simple follower agent that picks an influencer (agentA) to follow
+; - Moves toward the influencer to maintain engagement
+; - Tests the influencer agent's engagement tracking and conflict mechanics
 ;
 ;*********************************************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; LOGBOOK OF UPDATES IN THIS FILE
 ; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
+; 20260410    Implemented as basic follower agent for testing influencers                                         Copilot
 ; 20250423    Initial template of a dummy-breed to be adapted by the project group                               Gion
-;
-;
 ;
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; LOCAL VARIABLES
 agentBs-own [
-  ; finite state machine
-  state;-------------state variable that corresponds to procedure names
-  countTicks
-  follower
-  oldFollower
-  identNr
-  nr
-  homeLoc;------------home location, where the agent lives
-  localxy;------------current local patch on which the agent is standing on
-  friendList;---------List of other citizen agents that are considered as friends
-  friend;-------------An agent from the friendList
-  agTimer1;---------- local timer for agents
-  agAlarm1
+  ; Follower state
+  following              ; the influencer (agentA) this follower is currently following
+  moveSpeed              ; base movement speed toward influencer
+  
+  ; Engagement mechanics
+  loyaltyTimer           ; ticks spent with current influencer
+  boredomThreshold       ; ticks before getting bored if no engagement happens
+  engagementNeeds        ; how much drama/engagement this follower needs (0-100)
 ]
 ;******************* end local variables *****************************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; SETUP FUNCTIONS
 to setup-agentBs
-  ; example of create-agent-function, replace with your own code!
-  create-agentBs Number_AgentB [;Number_AgentA from slider
+  create-agentBs Number_AgentB [
     set label who
-    set shape "person" 
+    set shape "person"
     set size 1
-    set color yellow
-    move-to one-of patches with [region = "house"]
-    ; save the home location
-    set homeLoc patch-here
-    set agAlarm1 0
-    set follower []
-    set oldFollower []
-    set countTicks 0
-    set identNr 0
-    set state "State_MoveAround"
-    set nr 0
+    set color cyan
+    
+    ; Start at random location
+    move-to one-of patches
+    
+    ; Initialize follower state
+    set following nobody
+    set moveSpeed 0.8
+    
+    ; Initialize engagement mechanics
+    set loyaltyTimer 0
+    set boredomThreshold 30 + random 20  ; get bored after 30-50 ticks without drama
+    set engagementNeeds 40 + random 60   ; 40-100: how much drama they want
   ]
- 
-end ;setup-agentBs
-
-;---- specific setup functions, ; add your own code!
+end
 
 ;***************************end setup functions ******************************************************************************************************************
 ;************************************************************************************************************************************************************
 ; UPDATE BELIEFS
 
 to updateEnvironmentInfo_agentBs
-  ; add your own code here instead
-  
-  ;--- save local position
-  set localxy patch-here
-  
+  ; Check if should switch influencers
+  if following = nobody [
+    ; Pick a new influencer if not following anyone
+    pick-influencer
+  ] [
+    ; Consider switching based on boredom or better options
+    let current-influencer following
+    
+    ; Increase loyalty timer
+    set loyaltyTimer loyaltyTimer + 1
+    
+    ; Check if bored (no drama happening and been here too long)
+    let is-bored (loyaltyTimer > boredomThreshold and [conflictActive] of current-influencer = false)
+    
+    ; Check for high-rep influencer (reputation > current influencer)
+    let high-rep-influencer one-of agentAs with [[reputation] of self > [reputation] of current-influencer]
+    
+    ; Check if current influencer is in conflict (drama!)
+    let drama-available (any? agentAs with [conflictActive = true])
+    
+    if is-bored and drama-available [
+      ; Switch to an influencer having conflict
+      let conflicting-influencer one-of agentAs with [conflictActive = true]
+      if conflicting-influencer != nobody [
+        set following conflicting-influencer
+        set loyaltyTimer 0
+      ]
+    ] else if is-bored and high-rep-influencer != nobody and random 100 < 40 [
+      ; 40% chance to switch to higher reputation if bored
+      set following high-rep-influencer
+      set loyaltyTimer 0
+    ] else if random 1000 < 5 [
+      ; 0.5% chance per tick to randomly explore a different influencer
+      set following one-of agentAs
+      set loyaltyTimer 0
+    ]
+  ]
+end
 
-end ;updateEnvironmentInfo_agentBs
 ;***************************end update beliefs ******************************************************************************************************************
 ;************************************************************************************************************************************************************
 ; REACTIVE SUBSUMPTION HIERARCHY
+
 to reactive_agentBs
-  ; add your own code here instead
-  moveAround_agentB
-end ;reactive_agentBs
-
-;---- specific reactive intention functions
-to moveAround_agentB
-  rt random 50
-  lt random 50
-  fd 1
+  ; Move toward the influencer being followed
+  if following != nobody [
+    move-toward-influencer
+  ]
 end
 
-;***************************end reactive subsumption hierarchy ***************************************************************************************************
-;************************************************************************************************************************************************************
+;***************************end reactive subsumption hierarchy ***************************************************
 
+;**********************************************************************************************************************************************************
+; MOVEMENT & DECISION LOGIC
 
-; Finite State Machine
-; States:
-;   State_MoveAround: --------
-;   State_IdentifyFollower:---
-;   State_Escape:-------------
-;   State_Sanctuary:----------
-
-to State_MoveAround
-  set color yellow
-  ; moving around randomly, on empty patches
-  rt random 50
-  lt random 50
-  fd 1
-  ; make sure the agent moves to empty region within its neighborhood
-  if not (region = "empty") 
-  [
-    let footstep neighborhood with [region = "empty"] 
-    if any? footstep [move-to one-of footstep]
-  ]
-  
-  ; look for indication to be followed
-  ; if only one other agent is nearby and it is the same agent that is still nearby 10 ticks later, be suspicious
-  ;let nearbys other turtles-on neighbors4 - turns out that the follower is too far away
-  ; trying to implement that followers are on the patches behind?
-  let nearbys min-one-of other turtles-on patch-ahead -1 [distance myself]
-  ;set follower min-one-of nearbys [distance myself]; identify the agent that is nearest
-  set follower nearbys
-  
-  if not ((follower = nobody) or (follower = self))
-  [
-    ; test if the same agent follows under 10 ticks
+to pick-influencer
+  ; Pick a new influencer based on preferences
+  let all-influencers agentAs
+  if any? all-influencers [
+    let high-rep-ones all-influencers with [reputation > 60]
+    let conflicting-ones all-influencers with [conflictActive = true]
     
-    ifelse countTicks > 0 
-    [
-      ;test runs
-      ; count how many times the oldfollower was detected
-      if (follower = oldfollower) [ set nr nr + 1]
-      
-      ; test if 10 ticks have passed
-      if (ticks > countTicks + 10)
-      [
-      ;              
-        ;compare if the same follower has appeared at least 5 times
-        if (nr > 4)
-        [
-        ; indication for a follower
-        if Debug [print (word self ": is being followed by " oldfollower)]
-        
-        set state "State_identifyFollower"
-        ]
-        ;reset the test
-        set countTicks 0 ; resetting the counters
-        set nr 0
-        
-      ]
+    if any? conflicting-ones and random 100 < 30 [
+      ; 30% chance to follow conflict/drama if available
+      set following one-of conflicting-ones
+    ] else if any? high-rep-ones and random 100 < 60 [
+      ; 60% chance to follow high reputation
+      set following one-of high-rep-ones
+    ] else [
+      ; Otherwise pick randomly
+      set following one-of all-influencers
     ]
-    [;else countTicks = 0, initialize
-      set oldFollower follower ; save the follower to compare with
-      set nr 0
-      set countTicks ticks
-      if Debug [print (word self ": has possible follower: " follower)]
-    ]
+    set loyaltyTimer 0
+  ]
+end
+
+to move-toward-influencer
+  ; Face the influencer and move toward them
+  set heading towards following
+  forward moveSpeed
+  
+  ; Check if influencer is in conflict and boost engagement speed
+  if [conflictActive] of following [
+    forward moveSpeed * 0.5  ; Move faster toward dramatic influencers
   ]
   
-          
-end
-
-to State_IdentifyFollower
-  ;stops and stands still to see if the same follower remains close by
-  set color red
-  ; we suspect a specific follower and only need to verify that it is nearby
-  let nearbys other turtles in-radius 1
-  ; checking for three ticks
-  ifelse nr > 3 [
-    set state "State_MoveAround" ; default next state
-    set nr 0
-    ; check if follower was found 3 times
-    if (identNr = 3)[
-      ;definitive a follower
-      if Debug [print (word self " has decided to escape from follower: " follower)]
-      set state "State_Escape"
+  ; Update color based on engagement
+  let distance-to-influencer distance following
+  ifelse distance-to-influencer < 15 [
+    ifelse [conflictActive] of following [
+      set color orange   ; engaged AND influencer in conflict = drama!
+    ] [
+      set color green    ; engaged to influencer
     ]
-    set identNr 0
-  ]
-  [; else nr <=3
-    ;check if follower is nearby
-    if (member? follower nearbys) [set identNr IdentNr + 1]; increase the counter everytime the follower is seen
-    ; increase nr
-    set nr nr + 1
-  ]
-  
-end
-
-to State_Escape
-; a follower has been identified from which the agent tries to escape by moving into the zone 'sanctuary'
-  set color orange
-  ; move towards 'sanctuary' until it arrives
-  ifelse (region = "sanctuary") 
-  [
-    ;arrived at sanctuary
-    ;if Debug []
-    set state "State_Sanctuary"
-  ]
-  [;else not yet at sanctuary
-    let destination min-one-of patches with [region = "sanctuary"] [distance myself]
-    set heading (towards destination) ;face in direction of the sanctuary-patch
-    fd 2; run faster thant the followers
+  ] [
+    set color cyan       ; searching/moving toward influencer
   ]
 end
 
-to State_Sanctuary
-  set color blue
-  ; move around in the sanctuary-zone
-  let footstep neighborhood with [region = "sanctuary"] 
-    if any? footstep [move-to one-of footstep]
-
-end
-
+;***************************end movement ************************************************************
 
 ;*****************************************************************************************************************************************************
 ; HELP FUNCTIONS
-
-
 
 ;***************************end help functions ***************************************************************************************************
 ;*****************************************************************************************************************************************************
