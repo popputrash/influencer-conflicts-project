@@ -44,22 +44,4 @@ to setup-environment
     set region "empty"
     set neighborhood patches in-radius 2
   ]
-    ; create sanctuary
-    ask patches with [
-      pxcor >= (max-pxcor / 4) * 3 - 4 and
-      pxcor < (max-pxcor / 4) * 3 + 4 and
-      pycor >= (max-pycor / 4) * 3 - 4 and
-      pycor < (max-pycor / 4) * 3 + 4
-  ][ set pcolor cyan
-    set region "sanctuary"]
-  ask one-of patches with [region = "sanctuary"]
-    [set plabel region]
-  
-  
-    ;create 10 houses
-    let emptyPatches patches with [region = "empty"]
-    ask n-of 10 emptyPatches [
-      set region "house"
-      set pcolor 74
-    ] 
 end ;setup-environment

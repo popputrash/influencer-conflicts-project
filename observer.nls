@@ -13,6 +13,22 @@
 
 ;-------------------------------------------------------------------------------------------------------------------------------------------------------
 ; reporters used in the plot function by the monitor-windows 
+to update-followers-plot
+  set-current-plot "Followers per influencer over time"
+
+  foreach sort-on [who] agentAs [ a ->
+    let pen-name (word "influencer-" [who] of a)
+
+    if not plot-pen-exists? pen-name [
+      create-temporary-plot-pen pen-name
+      set-plot-pen-color ([color] of a)
+    ]
+
+    set-current-plot-pen pen-name
+    plotxy ticks ([followerCount] of a)
+  ]
+end
+
 
 
 ;--------------------------------------------------------- end reporters used in the plot functions --------------------------------------------------

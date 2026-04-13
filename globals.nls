@@ -11,7 +11,10 @@ globals [
   ; Number_AgentA
   ; Number_AgentB
   ; ------------- Variables
-    
+  speed
+  base-resistance
+  resistance-factor
+  max-resistance
   
   
   ;----- Time variables, using the time extension, see https://ccl.northwestern.edu/netlogo/docs/time.html

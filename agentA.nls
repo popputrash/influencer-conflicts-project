@@ -45,6 +45,9 @@ agentAs-own [
   moveSpeed            ; base speed of movement
   targetX              ; x coordinate of movement target
   targetY              ; y coordinate of movement target
+  
+  
+  influencerColor      ; permanent unique color for each influencer
 ]
 ;******************* end local variables *****************************************************************************************************************
 
@@ -57,6 +60,10 @@ to setup-agentAs
     set shape "star"
     set size 2
     set color yellow
+    
+    
+    set influencerColor (5 + ((who * 10) mod 130))
+    set color influencerColor
     
     ; Initialize influencer state
     set followerCount 0              ; will count follower agents in setup
@@ -291,14 +298,18 @@ end
 
 to update-visualization_agentA
   ; Update color based on reputation
+  set influencerColor (5 + ((who * 10) mod 130))
+  set color influencerColor
   
-  (ifelse reputation > 70 [
-    set color yellow
-  ] 
-    reputation > 50 [
-      set color orange
-    ])
   
+  ;(ifelse reputation > 70 [
+   ;  set color yellow
+  ;] 
+   ; reputation > 50 [
+    ;  set color orange
+  ;])
+  
+ 
   ; Pulse size during conflict to show activity
   ifelse conflictActive [
     set color red
@@ -331,5 +342,4 @@ to-report get-conflict-intensity
   ; Returns current conflict intensity for visualization
   report conflictIntensity
 end
-
 ;***************************end reporter functions *************************************************************
