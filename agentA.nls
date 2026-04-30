@@ -223,6 +223,7 @@ to execute-conflict_agentA
   ; When conflict duration ends, return to normal
   if conflictDuration <= 0 [
     set conflictActive false
+    set conflictTarget nobody
     set conflictIntensity 0
   ]
 end
@@ -242,13 +243,15 @@ to maintain-status_agentA
   ]
 end
 
-to choose-conflict-candidates
+to choose-conflict-candidate
   let fc followerCount
   let candidates other agentAs with [conflictActive != true and followerCount > fc]
   
   set conflictTarget one-of candidates
-  
-  report candidates
+  if conflictTarget != nobody [
+    ask conflictTarget [set conflictActive true]
+    ask conflictTarget [set conflictTarget myself]
+]
   
 end
 
