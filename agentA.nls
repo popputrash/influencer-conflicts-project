@@ -32,6 +32,7 @@ agentAs-own [
   conflictActive       ; boolean: currently in conflict state?
   conflictIntensity    ; current intensity of conflict (0-100)
   conflictDuration     ; ticks remaining in active conflict
+  conflictTarget
   
   ; Decision thresholds
   minEngagementThreshold    ; minimum acceptable engagement level
@@ -79,6 +80,7 @@ to setup-agentAs
     set conflictActive false
     set conflictIntensity 0
     set conflictDuration 0
+    set conflictTarget nobody
     
     ; Set decision thresholds
     set minEngagementThreshold 3     ; minimum followers within radius
@@ -200,6 +202,7 @@ end
 to initiate-conflict_agentA [conflict-reason]
   ; Start a conflict to regain attention (only if not already in conflict)
   if not conflictActive [
+    choose-conflict-candidate
     set conflictActive true
     set conflictIntensity 70 + random 30          ; 70-100 intensity
     set conflictDuration 5 + random 5             ; 5-10 ticks of active conflict
@@ -238,6 +241,17 @@ to maintain-status_agentA
     ]
   ]
 end
+
+to choose-conflict-candidates
+  let fc followerCount
+  let candidates other agentAs with [conflictActive != true and followerCount > fc]
+  
+  set conflictTarget one-of candidates
+  
+  report candidates
+  
+end
+
 
 ;***************************end conflict mechanics ************************************************************
 

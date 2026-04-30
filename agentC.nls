@@ -1,179 +1,216 @@
 ; ********************************************************************************************************************************************************
-;***          AGENTC.NLS  (contains all the code for the agentC)                                                                                    ****
+;*** AGENTC.NLS (Admin / Plattformens Polisbil - "Stop & Frisk" Mode)                                                                     ****
 ;*********************************************************************************************************************************************************
-; DESCRIPTION OF THE AGENT
-; - Lives in one of the houses upon creation.
-; - Moves around to find friends. If it meets another agent it saves a reference to the agent in the 'friendList'.
-; - Once friendList contains fmax friends, the agent stops adding other agents to the list, instead it checks if agents that it meets are in their friendList
-; - if another agent is in the friendList it starts following that friend
-;
+; BESKRIVNING:
+; - Admin fungerar som en polisbil som patrullerar mellan olika influencers (AgentA).
+; - Polisen IGNORERAR influencers som redan är under Shadowban.
+; - När Admin når en aktiv influencer "stoppas" den (rörelsen fryses) under en kontrollperiod.
+; - Under kontrollen:
+;     1. Om influencern bråkar (conflictActive) ges en rimlig boost om det är "bra drama".
+;     2. Om bråket är för toxiskt (över banThreshold) utdelas en Shadowban och polisen åker direkt.
+; - Shadowban: Influencern fryser på plats (moveSpeed 0), blockeras från nya följare (engagementRadius 0),
+;   får en "BANNED" skylt, och förlorar följare ner till 50%. Straffet är förlängt för att följare ska hinna fly.
 ;*********************************************************************************************************************************************************
-; LOGBOOK OF UPDATES IN THIS FILE
-; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
-; 20260307    Initial template of a dummy-breed to be adapted by the project group                               Gion
-;
-;
-;
-;********************end logbook ************************************************************************************************************************
-;*********************************************************************************************************************************************************
-; LOCAL VARIABLES
+
+; LOCAL VARIABLES (ADMIN STATE)
 agentCs-own [
-  ; some examples of possible local variables, -replace with your own
-  
-  nearbyAgents;---List of the agents nearby
-  vision;---------how long nearby is defined as
-  fmax;-----------maximum members of friends
-  friend;---------potential friend to add or follow
-  followFriend;---selected friend to follow
-  friendList;-----agent set of other citizen agents that are considered as friends
-  friends;--------list with numbers of agents (same as friendList, but as a sorted list)
-  
-  moveFlag;-------Flag to indicate the situation of moving freely around
-  followFlag;-----Flag to indicate the situation of following a friend
-  
-  
-  homeLoc;------------home location, where the agent lives
-  localxy;------------current local patch on which the agent is standing on
-  
-  agTimer1;---------- local timer for agents
-  ;TimerX
-  agAlarm1;
+  boostPower         ; Hur många följare som "boostas" in i flödet vid bra drama
+  banThreshold       ; Gräns för shadowban (baserat på AgentA:s conflictIntensity)
+  agentCSpeed        ; Hur snabbt polisbilen kör
+  targetInfluencer   ; Influencern som polisen är på väg till just nu
+  adminState         ; "patrol" (letar) eller "checking" (kontroll pågår)
+  checkTimer         ; Nedräkning för hur länge kontrollen varar
 ]
-;******************* end local variables *****************************************************************************************************************
-;**********************************************************************************************************************************************************
+
+; **********************************************************************************************************************************************************
 ; SETUP FUNCTIONS
 to setup-agentCs
-  ; example of create-agent-function, replace with your own code!
-  
-  create-agentCs Number_AgentC [; Number_AgentC from slider
-      set label who
-      set shape "person" 
-      set size 1
-      set color white
-      move-to one-of patches with [region = "house"]
-      ; save the home location
-      set homeLoc patch-here
-      ;setxy [pxcor] of homeLoc [pycor] of homeLoc 
-      set friend []
-      set followFriend []
-      set friendList turtle-set []
-      set vision 2
-      set fmax 7
-      ; initial values of flags
-      set followFlag false 
-      set moveFlag true
-    ]
+  create-agentCs 1 [
+    set label ""
+    set shape "car"     ; Om "car" inte finns i ditt NetLogo, ändra till "target"
+    set color blue      ; Polisblå
+    set size 3
+    setxy random-xcor random-ycor
     
-end ;setup-agentCs
-
-
-;***************************end setup functions ******************************************************************************************************************
-;************************************************************************************************************************************************************
-; UPDATE information about the agent's environment
-
-to updateEnvironmentInfo_agentCs 
-  
-  set friend []  
-  
-  ; update information about other agents nearby
-  set nearbyAgents other turtles in-radius vision
-  if any? nearbyAgents [
-    set friend min-one-of nearbyAgents [distance myself]; identify the agent that is nearest
-    ; make sure friend is not the agent itself
-    if not (friend = self) [; only bother if it is not myself
-                            ; if the list of friends is empty, add the agent
-      ifelse (not any? turtle-set friendList) [set friendList friend]
-      ;ifelse (empty? friendList) [set friendList friend]
-      [
-        ; if not already following a friend and member of the list of friends and less than fmax friends - add to the list of friends
-        ;ifelse (length friendList < fmax) 
-        if (not followFlag) [; not already following a friend
-          ifelse (count turtle-set friendList < fmax) 
-          [
-            ;add the friend to the friendList
-            ;set friendList lput friend friendList
-            set friendList (turtle-set friend friendList)
-            set friends sort friendList
-            set moveFlag true ; flag to indicate the case of free moving around      
-          ]
-          [ ; check if the friend is in the friendList, if yes follow that agent
-            ifelse (member? friend friendList)
-            [; is member, follow it
-              set followFlag true
-              set moveFlag false
-              set followFriend friend
-              ;if Debug [print (word "friend: " friend "friends: " friends)]
-            ]
-            [; not a member, do not follow
-              set moveFlag true
-              set followFlag false
-            ]
-          ]
-        ]  
-      ]
-    ]  
+    ; Initiera variabler
+    set boostPower 2    ; En rimlig boost (2 följare per tick)
+    set banThreshold 75 ; Shadowban vid 75% intensitet
+    set agentCSpeed 0.8
+    set adminState "patrol"
+    set targetInfluencer nobody
   ]
   
-  ;--- save local position
-  set localxy patch-here
-  
+  ; Nollställ alla influencers inför start
+  ask agentAs [
+    set is-shadowbanned false
+    set is-stopped-by-admin false
+    set label ""
+    set moveSpeed 0.5        ; Säkerställ att de kan röra sig från start
+    set engagementRadius 20  ; Säkerställ standardradien
+  ]
+end
 
-end ;updateEnvironmentInfo_agentCs
-;***************************end update environment information ******************************************************************************************************************
-;************************************************************************************************************************************************************
+; **********************************************************************************************************************************************************
+; UPDATE information about the agent's environment
+to updateEnvironmentInfo_agentCs
+  ; Denna lämnas tom medvetet enligt mallen. All logik sker i reactive_agentCs.
+end
+
+; **********************************************************************************************************************************************************
 ; REACTIVE SUBSUMPTION HIERARCHY
 to reactive_agentCs
-  ; override updateEnvironmentInfo_agentCs by testcase-procedure
-   if activateTestCase [override_agentCSetup] ; this overrides the flags for following and moving around 
+  ; 1. Hantera polisens patrullering och stopp-kontroller
+  manage-police-patrol
   
-  ; highest priority: move freely around
-  ifelse moveFlag [ moveAround_agentC]
-  [ifelse followFlag [followAgent]
-    [; unknown case, print message
-      if Debug [print (word "agentC with id: " who " is not walking around and not following a friend")]
+  ; 2. Hantera aktiva shadowbans (Skyltar, frysa och följarförlust)
+  manage-shadowbans_agentC
+end
+
+; **********************************************************************************************************************************************************
+; ADMIN LOGIK: PATRULL OCH KONTROLL
+to manage-police-patrol
+  ask agentCs [
+    
+    ; --- LÄGE 1: PATRULLERING (Letar efter nästa influencer) ---
+    if adminState = "patrol" [
+      if targetInfluencer = nobody [ 
+        ; VÄLJ BARA INFLUENCERS SOM INTE ÄR BANNADE! (Polisen skippar spökprofiler)
+        let valid-targets agentAs with [not is-shadowbanned]
+        ifelse any? valid-targets [
+          set targetInfluencer one-of valid-targets
+        ] [
+          ; Om ingen giltig måltavla finns, rör sig polisen bara framåt
+          fd agentCSpeed
+        ]
+      ]
+      
+      if targetInfluencer != nobody [
+        face targetInfluencer
+        fd agentCSpeed
+        
+        ; Om polisen når influencern -> PÅBÖRJA KONTROLL
+        if distance targetInfluencer < 1.5 [
+          set adminState "checking"
+          set checkTimer 100 ; Kontrollen varar max i 100 ticks
+          
+          ask targetInfluencer [
+            set is-stopped-by-admin true
+            set label "POLICE CHECK"
+          ]
+        ]
+      ]
+    ]
+    
+    ; --- LÄGE 2: KONTROLL (Står stilla med influencern) ---
+    if adminState = "checking" [
+      set checkTimer checkTimer - 1
+      
+      ; TVINGA Influencern att stå helt stilla hos polisen
+      let police-x xcor
+      let police-y ycor
+      if targetInfluencer != nobody [
+        ask targetInfluencer [ setxy police-x police-y ]
+        
+        ; Om influencern har en konflikt på gång under kontrollen:
+        if [conflictActive] of targetInfluencer = true [
+          analyze-conflict-during-stop
+        ]
+      ]
+      
+      ; När tiden är ute (eller om polisen tvingade ner den till 0 efter en ban):
+      if checkTimer <= 0 [
+        if targetInfluencer != nobody [
+          ask targetInfluencer [ 
+            set is-stopped-by-admin false 
+            ; Ta bara bort polis-skylten om de INTE blev bannade
+            if not is-shadowbanned [ set label "" ]
+          ]
+        ]
+        ; Släpp influencern och åk vidare direkt
+        set adminState "patrol"
+        set targetInfluencer nobody
+      ]
+    ]
+    
+    bounce-at-boundary_agentC
+  ]
+end
+
+to analyze-conflict-during-stop
+  ; Denna procedur körs av Admin-agenten under en kontroll
+  let current-target targetInfluencer
+  
+  ifelse [conflictIntensity] of current-target > banThreshold [
+    ; --- FALL A: FÖR TOXISKT -> SHADOWBAN ---
+    ask current-target [
+      if not is-shadowbanned [
+        set is-shadowbanned true
+        set shadowban-target int (followerCount / 2) ; Mål: tappa 50% av följarna
+        set conflictActive false   ; Stoppa bråket direkt
+        set reputation 0           ; Ryktet krossas
+        
+        ; NYA STRAFFET: Frys fast dem, sätt upp skylten och BLOCKERA
+        set moveSpeed 0            ; De kan inte röra sig!
+        set engagementRadius 0     ; Gör dem OSYNLIGA så de inte får nya följare
+        set label "BANNED"         ; Skylten syns tydligt
+      ]
+    ]
+    
+    ; Polisen är klar med sitt jobb här, avbryt stoppet omedelbart och åk vidare!
+    set checkTimer 0
+    
+  ] [
+    ; --- FALL B: BRA DRAMA -> RIMLIG BOOST ---
+    let potential-viewers agentBs with [following != current-target] in-radius 25
+    if any? potential-viewers [
+      ask n-of (min list boostPower count potential-viewers) potential-viewers [
+        set following current-target
+        set loyaltyTimer 0
+      ]
     ]
   ]
-end ;reactive_agentCs
-
-;---- specific reactive intention functions
-to moveAround_agentC
-  rt random 50
-  lt random 50
-  fd 1
-  ; make sure the agent moves to empty region within its neighborhood
-  if not (region = "empty" or region = "sanctuary") [
-    let footstep neighborhood with [region = "empty"] 
-    if any? footstep [move-to one-of footstep]]
 end
 
-to followAgent_c
-  if (([list xcor ycor] of self) != ([list xcor ycor] of followFriend)) [; avoids error of not being able to use heading on same position
-    set heading (towards followFriend) ;face in direction of the friend-problem if on same patch
-    fd 1
-    if Debug [print (word "agentC with id: " who " is following a friend with id: " followFriend)]
-    ; break the connection if in 'sanctuary'
-    if (region = "sanctuary") [
-      ;set the agent somwhere else and let it move freely again
-      let places neighborhood with [region = "empty"]
-      if any? places [move-to one-of places]
-      set followFlag false
-      set moveFlag true
-      set followFriend []
-      if Debug [print (word "agentC with id: " who " is being replaced away from 'sanctuary'")]
+to manage-shadowbans_agentC
+  ; Hanterar straffet för alla influencers som är shadowbannade
+  ask agentAs with [is-shadowbanned = true] [
+    
+    ; För säkerhets skull, se till att de står stilla, är osynliga och har skylten
+    set moveSpeed 0
+    set engagementRadius 0
+    set label "BANNED"
+    
+    ; FÖLJAR-STRAFF: Blödning av följare ner till 50%
+    let my-followers agentBs with [following = myself]
+    if followerCount > shadowban-target and any? my-followers [
+      
+      ; SAKTA NER STRAFFET: Tappar bara följare var 15:e tick så det drar ut på tiden
+      if ticks mod 15 = 0 [
+        ask one-of my-followers [
+          set following nobody
+          set color gray
+          set state "state_wander"
+          
+          ; AKTIV SPRIDNING: Tvinga följaren att vända ryggen till och gå därifrån!
+          rt 180 + random 40 - 20
+        ]
+      ]
     ]
-  ] 
+    
+    ; ÅTERSTÄLLNING: När målet är nått lyfts straffet
+    if followerCount <= shadowban-target [
+      set is-shadowbanned false
+      set reputation 40        ; De får en chans att börja om
+      set moveSpeed 0.5        ; KAN BÖRJA GÅ IGEN!
+      set engagementRadius 20  ; SYNLIGA IGEN: Kan få nya följare!
+      set label ""             ; TAR BORT SKYLTEN!
+    ]
+  ]
 end
 
-;***************************end reactive subsumption hierarchy ***************************************************************************************************
-;************************************************************************************************************************************************************
-
-
-
-;*****************************************************************************************************************************************************
+; **********************************************************************************************************************************************************
 ; HELP FUNCTIONS
-
-
-
-;***************************end help functions ***************************************************************************************************
-;*****************************************************************************************************************************************************
-
+to bounce-at-boundary_agentC
+  if xcor >= max-pxcor or xcor <= min-pxcor [ set heading (- heading) ]
+  if ycor >= max-pycor or ycor <= min-pycor [ set heading (180 - heading) ]
+end
