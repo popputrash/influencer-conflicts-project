@@ -46,6 +46,7 @@ influencers-own [
   reputationDamagePerConflict ; reputation points lost per conflict
   
   ticksSinceStableFollowing
+  stableFollowingTimeout
   followerLossRate
   
   ; Movement variables
@@ -75,7 +76,7 @@ to setup-influencerAgents
     
     ; Initialize influencer state
     set followerCount 0              ; will count follower agents in setup
-    set engagementRadius 20          ; perception radius for engagement
+    set engagementRadius 50          ; perception radius for engagement
     set engagementLevel 0
     
     ; Initialize reputation system
@@ -97,9 +98,10 @@ to setup-influencerAgents
     
     set followerLossRate 0
     set ticksSinceStableFollowing 0
+    set stableFollowingTimeout random 800
     
     ; Initialize movement
-    set moveSpeed 0.5
+    set moveSpeed 0.2
     set targetX random max-pxcor
     set targetY random max-pycor
     move-to patch targetX targetY
@@ -139,15 +141,15 @@ to execute-fsm-influencer
     (ifelse 
       engagementLevel < minEngagementThreshold and engagementLevel > 0 [
       initiate-conflict-influencer "low-engagement"
-      set current-state "IN_CONFLICT"
+      if conflictActive [ set current-state "IN_CONFLICT" ]
     ]  
     followerLossRate > 0.5 [
       if not conflictActive [initiate-conflict-influencer "panic conflict"]
-      set current-state "IN_CONFLICT"
+      if conflictActive [ set current-state "IN_CONFLICT" ]
     ]
-    ticksSinceStableFollowing > 100[
+    ticksSinceStableFollowing > stableFollowingTimeout[
       initiate-conflict-influencer "stable following"
-      set current-state "IN_CONFLICT"
+      if conflictActive [ set current-state "IN_CONFLICT" ]
     ]
       )
   ]
@@ -223,29 +225,39 @@ end
 ; CONFLICT MECHANICS
 
 
-to choose-conflict-candidate
+to-report get-conflict-candidate
   let fc followerCount
   let candidates other influencers with [conflictActive != true and followerCount > fc]
   
-  set conflictTarget one-of candidates
-  if conflictTarget != nobody [
-    ask conflictTarget [set conflictAttackerFlag true]
-    ask conflictTarget [set conflictTarget myself]
-]
-  
+  report one-of candidates
 end
 
 
 to initiate-conflict-influencer [conflict-reason]
   ; Start a conflict to regain attention (only if not already in conflict)
   if not conflictActive [
-    choose-conflict-candidate
-    set conflictActive true
-    set conflictIntensity 70 + random 30          ; 70-100 intensity
-    set conflictDuration 5 + random 5             ; 5-10 ticks of active conflict
+    let candidate get-conflict-candidate
     
-    ; Broadcast conflict event (for observer/followers to detect)
-    if Debug [print (word "Influencer " who " initiated conflict: " conflict-reason " at tick " ticks)]
+    if candidate != nobody [
+      ; Set own (attacker) state
+      set conflictTarget candidate
+      set conflictActive true
+      let duration 5 + random 30 
+      let intensity 70 + random 30
+      set conflictIntensity intensity
+      set conflictDuration duration
+      
+      ; Set victim (target) state
+      ask conflictTarget [
+        set conflictAttackerFlag true
+        set conflictTarget myself
+        set conflictDuration duration
+        set conflictIntensity intensity
+      ]
+    
+      ; Broadcast conflict event (for observer/followers to detect)
+      if Debug [print (word "Influencer " who " initiated conflict: " conflict-reason " at tick " ticks)]
+    ]
   ]
 end
 
@@ -364,7 +376,7 @@ to update-visualization-influencer
   ; Update color based on reputation
   set influencerColor (5 + ((who * 10) mod 130))
   set color influencerColor
-  set label who
+  set label list who current-state
   
   ;(ifelse reputation > 70 [
    ;  set color yellow
