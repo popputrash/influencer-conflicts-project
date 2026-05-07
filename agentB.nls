@@ -130,7 +130,7 @@ to state_follow
   ; small exploration only for weakly committed followers
   if loyaltyTimer < 20 and switchCooldown = 0 and random-float 1 < 0.002 [
     let current-following following
-    let alt one-of agentAs with [self != current-following]
+    let alt one-of influencers with [self != current-following]
     if alt != nobody [
       set following alt
       set loyaltyTimer 0
@@ -189,7 +189,7 @@ end
 ;**********************************************************************************************************************************************************
 ; INFLUENCER SELECTION
 to try-adopt-influencer
-  let candidates agentAs with [distance myself <= engagementRadius]
+  let candidates influencers with [distance myself <= engagementRadius]
 
   if any? candidates [
     ; pick the strongest nearby option when unattached
@@ -206,7 +206,7 @@ to reevaluate-influencer-choice
   if following = nobody [ stop ]
   if switchCooldown > 0 [ stop ]
 
-  let candidates agentAs with [distance myself <= engagementRadius]
+  let candidates influencers with [distance myself <= engagementRadius]
   if not any? candidates [ stop ]
 
   let best-choice max-one-of candidates [reputation - distance myself]
@@ -231,7 +231,7 @@ end
 ;**********************************************************************************************************************************************************
 ; CONFLICT / STEALING SUPPORT
 to-report get-attacker-for [defender-agent]
-  let attackers agentAs with [self != defender-agent and conflictActive]
+  let attackers influencers with [self != defender-agent and conflictActive]
 
   if any? attackers [
     report max-one-of attackers [reputation + conflictIntensity - distance myself]

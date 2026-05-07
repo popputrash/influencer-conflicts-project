@@ -41,7 +41,7 @@ to setup-agentCs
   ]
   
   ; Nollställ alla influencers inför start
-  ask agentAs [
+  ask influencers [
     set is-shadowbanned false
     set is-stopped-by-admin false
     set label ""
@@ -75,7 +75,7 @@ to manage-police-patrol
     if adminState = "patrol" [
       if targetInfluencer = nobody [ 
         ; VÄLJ BARA INFLUENCERS SOM INTE ÄR BANNADE! (Polisen skippar spökprofiler)
-        let valid-targets agentAs with [not is-shadowbanned]
+        let valid-targets influencers with [not is-shadowbanned]
         ifelse any? valid-targets [
           set targetInfluencer one-of valid-targets
         ] [
@@ -173,7 +173,7 @@ end
 
 to manage-shadowbans_agentC
   ; Hanterar straffet för alla influencers som är shadowbannade
-  ask agentAs with [is-shadowbanned = true] [
+  ask influencers with [is-shadowbanned = true] [
     
     ; För säkerhets skull, se till att de står stilla, är osynliga och har skylten
     set moveSpeed 0

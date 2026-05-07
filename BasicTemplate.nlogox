@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <model version="NetLogo 7.0.3" snapToGrid="false">
-  <code><![CDATA[; ********************************************************************************************************************************************************
+  <code><![CDATA[breed [agentBs agentB]  ; to be replaced with the breeds in your project
+breed [agentCs agentC]
+breed [influencers influencer]
+; ********************************************************************************************************************************************************
 ;*** ****
 ;*** <BASIC TEMPLATE DIS-PROJECT VT26> (replace with your own project name)                                                     ****
 ;*** ****
@@ -11,21 +14,22 @@
 ; should be kept as slim as possible.
 ; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
 ; 20250423    Initial template to be adapted to the group's project template                                   Gion
-; 
+;
 ;
 ;
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; INCLUDED FILES
+
 __includes [
     ; your own files that you program:--------------------------------------------------------------
     "environment.nls" ; setup-functions for setting up the environment
     "globals.nls"; list with global variables
-    "agentA.nls" ; code for <agentA>, to be replace with proper breed
+    "influencerAgent.nls" ; code for influencerAgent, to be replace with proper breed
     "agentB.nls" ; code for <agentB>, to be replace with proper breed
     "agentC.nls" ; <--- NY RAD: Inkluderar din Agent C-fil
     "observer.nls"; code for observer-functions
-    "testcases.nls"; 
+    "testcases.nls";
     ;-----------------------------------------------------------------------------------------------
     ; files that you should never touch!--------------------------------------------------------------------------------
     "libraries/bdi.nls" ; contains the extension code for bdi with beliefs hash-tables and intention stacks
@@ -43,9 +47,9 @@ extensions [
 ; ********************end extensions *********************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; BREEDS OF AGENTS
-breed [agentAs agentA]  ; to be replaced with the breeds in your project
-breed [agentBs agentB]  ; to be replaced with the breeds in your project
-breed [agentCs agentC]  ; <--- NY RAD: Registrerar din agent-ras
+
+
+  ; <--- NY RAD: Registrerar din agent-ras
 ;******************** end breeds *************************************************************************************************************************
 
 ;**********************************************************************************************************************************************************
@@ -71,23 +75,22 @@ to setup
   set base-resistance 1
   set resistance-factor 0.5
   set max-resistance 10
-  
+
   ; setup of the environment (see file "environment.nls"):
   setup-environment ;
 
   ;-------- setup agentAs--------------:
    ; code defined in the include-file "agentAs.nls
+  setup-influencerAgents
 
   ;-------- setup agentBs--------------:
   setup-agentBs ; code defined in the include-file "agentBs.nls
-  
-  setup-agentAs
-  
-  setup-agentCs ; <--- NY RAD: Skapar din Agent C i världen
-  
+
+  ;setup-agentCs ; <--- NY RAD: Skapar din Agent C i världen
+
   ;-------- setup test cases
   ;if activateTestCase [setup-testagents]; code defined in the include-file "testcases.nls
-    
+
 
   ;-------- initialize time
    ; initialize the time and clock variables
@@ -114,43 +117,33 @@ to go
   tick ;- update time
 
   ;------ Update of Global Variables
-  
+
   ;---- Agents ----------------------------------------------------
   ;
-  ; OBS: "ask turtles" randomly picks agents. If you "ask agentAs" and then "ask agentBs", you will get a strange behavior 
+  ; OBS: "ask turtles" randomly picks agents. If you "ask agentAs" and then "ask agentBs", you will get a strange behavior
   ;in which agentAs always are executed first and their actions will dominate the simulation.
   ;This way the order of events will change between the agents
   ask turtles [
 
       if (breed = agentBs) [
        ;--update beliefs ----
-      updateEnvironmentInfo_agentBs ; code as defined in the include-file "agentBs.nls
+        updateEnvironmentInfo_agentBs ; code as defined in the include-file "agentBs.nls
       ;-- reactive behavior with finite state machien
-      reactive_agentBs; code defined in the include-file "agentBs.nls
+        reactive_agentBs; code defined in the include-file "agentBs.nls
       ]
-      
-      if (breed = agentAs) [
-      ;--update information ----
-      sense-environment_agentAs ; code defined in the include-file "agentAs.nls
-      ;-- reactive behavior with susbsumption hierarchy
-      reactive_agentAs; code defined in the include-file "agentAs.nls
+
+      if (breed = influencers) [
+        hybrid_influencer
       ]
-      
+
       ; <--- NYTT BLOCK: Får din Agent C att agera varje tick --->
       if (breed = agentCs) [
-      updateEnvironmentInfo_agentCs
-      reactive_agentCs
+        updateEnvironmentInfo_agentCs
+        reactive_agentCs
       ]
       ; <-------------------------------------------------------->
-    
+
    ]
-  
-  ask turtles [
-        if (breed = agentAs)[
-      update-visualization_agentA
-    ]
-    
-  ]
     update-followers-plot
 
 ;------- end agents ------------------
@@ -161,17 +154,17 @@ to go
   ; define these functions in the file observer.nls and run them here
   ; simpler observer functions can be directly added in the interface as monitors
 ;***************************end observer functions ****************************************
-  
+
    ;------- Test cases
   if activateTestCase [run "monitor_testagents"]; code defined in the include-file "testcases.nls
-  
+
 
   ;------- recorder
   if vid:recorder-status = "recording" [
     if Source = "Only View" [vid:record-view] ; records the plane
     if Source = "With Interface" [vid:record-interface] ; records the interface
   ]
-  
+
   ;------- terminal condition to stop the simulation, for example for test cases
   ;------- (needs to be in the go-loop, does not work otherwise)
   ;------- TERMINATE is a global variable, default = false

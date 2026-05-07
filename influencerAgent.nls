@@ -1,5 +1,5 @@
 ; ********************************************************************************************************************************************************
-;***          AGENTA.NLS  (Influencer Agent - Reactive Decision-Making Based on Attention Dynamics)                                            ****
+;***          influencer.NLS  (Influencer Agent - Reactive Decision-Making Based on Attention Dynamics)                                            ****
 ;*********************************************************************************************************************************************************
 ; DESCRIPTION OF THE AGENT (REACTIVE ARCHITECTURE)
 ; - An influencer agent that competes for follower attention in a social media ecosystem
@@ -14,10 +14,13 @@
 ; 20260410    Implemented as influencer agent with attention-driven conflict creation                          Maximilian och Ivan
 ; 20260307    Initial template provided                                                                        Gion
 ;
+
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; LOCAL VARIABLES (INFLUENCER STATE)
-agentAs-own [
+influencers-own [
+  current-state ; (NORMAL, IN_CONFLICT, RECOVERY, IN_COLLAB, SCOUTING)
+  
   ; Perception and status variables
   followerCount        ; current number of followers (agentB) following this influencer
   engagementRadius     ; radius representing area of influence/engagement
@@ -28,11 +31,14 @@ agentAs-own [
   followerHistory      ; list tracking recent follower counts for trend detection
   engagementHistory    ; list tracking recent engagement levels
   
+  
   ; Conflict state
   conflictActive       ; boolean: currently in conflict state?
   conflictIntensity    ; current intensity of conflict (0-100)
-  conflictDuration     ; ticks remaining in active conflict
+  conflictDuration     ; ticks remaining in active conflictz
   conflictTarget
+  conflictAttackerFlag 
+  
   
   ; Decision thresholds
   minEngagementThreshold    ; minimum acceptable engagement level
@@ -55,15 +61,16 @@ agentAs-own [
 ;**********************************************************************************************************************************************************
 ; SETUP FUNCTIONS
 
-to setup-agentAs
-  create-agentAs Number_AgentA [
+to setup-influencerAgents 
+  create-influencers Number_influencers [
     set label who
     set shape "star"
     set size 2
     set color yellow
     
-    
-    set influencerColor (5 + ((who * 10) mod 130))
+    set current-state "NORMAL"
+     
+    set influencerColor(5 + ((who * 10) mod 130))
     set color influencerColor
     
     ; Initialize influencer state
@@ -81,6 +88,7 @@ to setup-agentAs
     set conflictIntensity 0
     set conflictDuration 0
     set conflictTarget nobody
+    set conflictAttackerFlag false
     
     ; Set decision thresholds
     set minEngagementThreshold 3     ; minimum followers within radius
@@ -102,9 +110,75 @@ end
 ;**********************************************************************************************************************************************************
 ; UPDATE ENVIRONMENT INFORMATION (required by main model loop)
 
-to updateEnvironmentInfo_agentAs
+to updateEnvironmentInfo_influencers
   ; Placeholder for compatibility with main model loop
-  ; Actual sensing happens in reactive_agentAs
+  ; Actual sensing happens in reactive_influencers
+end
+
+to hybrid_influencer
+  sense-environment-influencer
+  
+  ; REACTIVE LAYER
+  if conflictAttackerFlag [
+    set current-state "IN_CONFLICT"
+    set conflictActive true
+    set conflictAttackerFlag false
+  ]
+  
+  execute-fsm-influencer
+  
+  update-visualization-influencer
+  
+end
+
+to execute-fsm-influencer
+  ;show current-state
+  (ifelse current-state = "NORMAL" [
+    maintain-status-influencer
+    move-normal-behavior
+    (ifelse 
+      engagementLevel < minEngagementThreshold and engagementLevel > 0 [
+      initiate-conflict-influencer "low-engagement"
+      set current-state "IN_CONFLICT"
+    ]  
+    followerLossRate > 0.5 [
+      if not conflictActive [initiate-conflict-influencer "panic conflict"]
+      set current-state "IN_CONFLICT"
+    ]
+    ticksSinceStableFollowing > 100[
+      initiate-conflict-influencer "stable following"
+      set current-state "IN_CONFLICT"
+    ]
+      )
+  ]
+  (current-state = "SCOUTING")[
+      ;kolla andra stora influencers vilket typ av content de postar inom
+      ;beräkna om de är värt att byta typ av content
+      
+  ]
+    
+  (current-state = "IN_CONFLICT")[
+      execute-conflict-influencer
+      move-conflict-behavior
+      if conflictActive = false [
+        set current-state "RECOVERY"
+      ]
+      
+  ]
+  (current-state = "IN_COLLAB")[
+      ;TODO
+      
+  ]
+  (current-state = "RECOVERY")[
+      recover-status-influencer
+      move-normal-behavior
+      if reputation > 80 [
+        set current-state "NORMAL"
+      ]
+  ])
+  
+  
+  
 end
 
 ;***************************end environment update *****************************************************
@@ -112,7 +186,7 @@ end
 ;**********************************************************************************************************************************************************
 ; REACTIVE SENSING: Perceive current status
 
-to sense-environment_agentAs
+to sense-environment-influencer
   ; Count current followers (agentB agents that are following this influencer)
   ; This assumes agentB has a "following" variable pointing to their influencer
   set followerCount count agentBs with [following = myself]
@@ -135,6 +209,7 @@ to sense-environment_agentAs
     ]
   ]
   
+  
    ifelse followerLossRate != 0 [
         set ticksSinceStableFollowing 0
       ]
@@ -142,64 +217,26 @@ to sense-environment_agentAs
        set ticksSinceStableFollowing ticksSinceStableFollowing + 1 
       ]
   
+  
 end
 
-;***************************end sensing *******************************************************************
-
-;**********************************************************************************************************************************************************
-; REACTIVE DECISION HIERARCHY: Apply prioritized rules
-
-to reactive_agentAs
-  ; Override by test case if needed
-  if activateTestCase [override_agentASetup]
-  
-  ; SENSE: Update current status
-  sense-environment_agentAs
-  
-  ; MOVE: Update position (agents can move while handling other behaviors)
-  move-agentA
-  
-  ; REACT & ACT: Apply prioritized decision rules
-  
-  ; PRIORITY 1: If in active conflict, continue conflict behavior and apply reputation damage
-  if conflictActive [
-    execute-conflict_agentA
-    update-visualization_agentA
-    stop
-  ]
-  
-  ; PRIORITY 2: Detect if engagement is critically low - trigger conflict
-  if engagementLevel < minEngagementThreshold and engagementLevel > 0 [
-    initiate-conflict_agentA "low-engagement"
-    update-visualization_agentA 
-    stop
-  ]
-  
-  ; PRIORITY 3: Detect follower loss trend - trigger conflict
-  if followerLossRate > followerLossThreshold and not conflictActive [
-    initiate-conflict_agentA "follower-loss"
-    update-visualization_agentA
-    stop
-  ]
-  
-  ; PRIORITY 4: Detect follower loss trend - trigger conflict
-  if ticksSinceStableFollowing > 200 [
-    initiate-conflict_agentA "stable following"
-    update-visualization_agentA 
-    stop
-  ]
-  
-  ; PRIORITY 5: Maintain normal behavior - recover reputation if not in conflict
-  maintain-status_agentA
-  update-visualization_agentA
-end
-
-;***************************end reactive decision hierarchy ****************************************************
-
-;**********************************************************************************************************************************************************
 ; CONFLICT MECHANICS
 
-to initiate-conflict_agentA [conflict-reason]
+
+to choose-conflict-candidate
+  let fc followerCount
+  let candidates other influencers with [conflictActive != true and followerCount > fc]
+  
+  set conflictTarget one-of candidates
+  if conflictTarget != nobody [
+    ask conflictTarget [set conflictAttackerFlag true]
+    ask conflictTarget [set conflictTarget myself]
+]
+  
+end
+
+
+to initiate-conflict-influencer [conflict-reason]
   ; Start a conflict to regain attention (only if not already in conflict)
   if not conflictActive [
     choose-conflict-candidate
@@ -212,10 +249,15 @@ to initiate-conflict_agentA [conflict-reason]
   ]
 end
 
-to execute-conflict_agentA
+to execute-conflict-influencer
+  ; TODO koppla ihop infuencers som bråkar på något sätt
   ; While in conflict state, reputation decays
-  set reputation reputation - reputationDamagePerConflict
+  ; TODO: Implementera något för längd av konfikt som inte är random.
+  ; tex on followlossrate börjar stagnera
+  set reputation (reputation - reputationDamagePerConflict) * random-float 1
   if reputation < 0 [set reputation 0]
+  
+  ;TODO posta content med mer viralitet eller kontrovers.
   
   ; Conflict duration decreases each tick
   set conflictDuration conflictDuration - 1
@@ -228,8 +270,11 @@ to execute-conflict_agentA
   ]
 end
 
-to maintain-status_agentA
+to maintain-status-influencer
   ; Normal operations: reputation slowly recovers if not in conflict
+  
+  ;TODO : post content
+  
   if reputation < 80 [
     set reputation reputation + 2
   ]
@@ -243,16 +288,14 @@ to maintain-status_agentA
   ]
 end
 
-to choose-conflict-candidate
-  let fc followerCount
-  let candidates other agentAs with [conflictActive != true and followerCount > fc]
+to recover-status-influencer
+    ;TODO : post content with higher intensity
   
-  set conflictTarget one-of candidates
-  if conflictTarget != nobody [
-    ask conflictTarget [set conflictActive true]
-    ask conflictTarget [set conflictTarget myself]
-]
+  if reputation < 100 [
+    set reputation reputation + 2
+  ]
   
+ 
 end
 
 
@@ -261,7 +304,7 @@ end
 ;**********************************************************************************************************************************************************
 ; MOVEMENT FUNCTIONS
 
-to move-agentA
+to move-influencer
   ifelse conflictActive [
     ; During conflict: move toward followers to regain attention + move erratically
     move-conflict-behavior
@@ -282,6 +325,10 @@ to move-normal-behavior
   let destination patch targetX targetY
   set heading towards destination
   forward moveSpeed
+end
+
+to move-recovery-behavior
+  move-normal-behavior
 end
 
 to move-conflict-behavior
@@ -313,11 +360,11 @@ end
 ;**********************************************************************************************************************************************************
 ; ACTION EXECUTION: Visual feedback and state updates
 
-to update-visualization_agentA
+to update-visualization-influencer
   ; Update color based on reputation
   set influencerColor (5 + ((who * 10) mod 130))
   set color influencerColor
-  
+  set label who
   
   ;(ifelse reputation > 70 [
    ;  set color yellow
@@ -340,7 +387,7 @@ end
 ;**********************************************************************************************************************************************************
 ; TEST CASE SUPPORT
 
-to override_agentASetup
+to override_influencerSetup
   ; Placeholder for test case overrides
   ; Can be extended to force specific conflict states for testing
 end
