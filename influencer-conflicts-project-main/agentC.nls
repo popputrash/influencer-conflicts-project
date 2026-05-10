@@ -1,0 +1,264 @@
+; ********************************************************************************************************************************************************
+;*** agentC.NLS  (Admin Agent - Hybrid Architecture for Platform Regulation)                                                              ****
+;*********************************************************************************************************************************************************
+; DESCRIPTION OF THE AGENT (HYBRID ARCHITECTURE)
+; - An admin agent that operates as a patrolling police car to regulate the social media ecosystem.
+; - Built with a vertical two-pass hybrid architecture (Proactive FSM + Reactive execution).
+; - Proactive FSM controls intentions and states: Patrol, Approach, Evaluate, Shadowban, and Boost.
+; - Evaluates stopped influencers: penalizes toxic conflicts (Shadowban) and rewards good drama (Boost).
+; - Delegates all physical movement and freezing actions to the reactive layer via flags.
+; - A background reactive layer handles the continuous follower loss of shadowbanned influencers.
+;
+;*********************************************************************************************************************************************************
+; LOGBOOK OF UPDATES IN THIS FILE
+; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
+; 20260510    Implemented hybrid admin agent with vertical FSM and reactive execution                        Hassan och Ali
+; 20260307    Initial template provided                                                                      Gion
+;
+;********************end logbook ************************************************************************************************************************
+;*********************************************************************************************************************************************************
+; LOCAL VARIABLES (ADMIN STATE)
+agentCs-own [
+  boostPower         
+  banThreshold       
+  agentCSpeed        
+  targetInfluencer   
+  proState           
+  checkTimer         
+  visitedInfluencers 
+  
+  ; Flaggor som hjärnan använder för att styra musklerna
+  moveForwardFlag
+  moveToTargetFlag
+  freezeTargetFlag
+]
+
+; **********************************************************************************************************************************************************
+; SETUP
+to setup-agentCs
+  create-agentCs 1 [
+    set shape "car"     
+    set color blue      
+    set size 3
+    setxy random-xcor random-ycor
+    
+    set boostPower 2    
+    set banThreshold 75 
+    set agentCSpeed 0.8
+    set proState "State_Patrullerar"
+    set targetInfluencer nobody
+    set visitedInfluencers [] 
+    
+    set moveForwardFlag false
+    set moveToTargetFlag false
+    set freezeTargetFlag false
+  ]
+  
+  ask influencers [
+    set is-shadowbanned false
+    set is-stopped-by-admin false
+    set moveSpeed 0.5        
+    set engagementRadius 20  
+  ]
+end
+
+; **********************************************************************************************************************************************************
+; TICK STEG 1: UPPDATERA KUNSKAP (BELIEFS)
+; Här tittar agenten på världen innan den fattar beslut.
+to updateEnvironmentInfo_agentCs
+  ask agentCs [
+    ; Säkerhetskontroll: Om agentens nuvarande mål plötsligt blir ogiltigt (t.ex. bannad av någon annan)
+    ; måste agenten glömma målet direkt och återgå till patrullering.
+    if targetInfluencer != nobody [
+      if [is-shadowbanned] of targetInfluencer [
+        set targetInfluencer nobody
+        set proState "State_Patrullerar"
+      ]
+    ]
+  ]
+end
+
+; **********************************************************************************************************************************************************
+; TICK STEG 2: PROAKTIVT LAGER (HJÄRNAN OCH FSM)
+; Här sker resonerandet. Agenten utför inga fysiska handlingar, utan sätter bara flaggor för vad som ska göras.
+to proactive_agentCs
+  ask agentCs [
+    ; Kör exakt det tillstånd som FSM (proState) befinner sig i just nu
+    run proState
+  ]
+end
+
+; --- FSM TILLSTÅND ---
+
+to State_Patrullerar
+  ; Intention: Hitta en giltig influencer att kontrollera
+  let valid-targets influencers with [not is-shadowbanned and not member? self [visitedInfluencers] of myself]
+  
+  ifelse any? valid-targets [
+    ; Mål hittat: Uppdatera internt tillstånd
+    set targetInfluencer one-of valid-targets
+    set proState "State_NarmarSigMal"
+  ] [
+    ; Inget mål hittat: Nollställ minne och beordra musklerna att köra framåt
+    set visitedInfluencers []
+    set moveForwardFlag true
+  ]
+end
+
+to State_NarmarSigMal
+  ; Intention: Ta sig till målet
+  if targetInfluencer != nobody [
+    ifelse distance targetInfluencer < 1.5 [
+      ; Framme vid målet: Byt tillstånd till utvärdering
+      set proState "State_Utvarderar"
+      set checkTimer 100 
+      
+      print (word "Admin: Officiell kontroll inleds vid influencer ID " [who] of targetInfluencer)
+      ask targetInfluencer [ set is-stopped-by-admin true ]
+    ] [
+      ; Inte framme: Beordra musklerna att styra mot målet
+      set moveToTargetFlag true
+    ]
+  ]
+end
+
+to State_Utvarderar
+  ; Intention: Övervaka influencern och fatta domslut
+  set freezeTargetFlag true ; Beordra musklerna att hålla både admin och målet stilla
+  set checkTimer checkTimer - 1
+  
+  if checkTimer mod 25 = 0 and checkTimer > 0 [
+    print (word "Admin: Kontroll pågår... ticks kvar: " checkTimer)
+  ]
+  
+  if targetInfluencer != nobody [
+    ; Kontinuerlig övervakning under pågående timer
+    ifelse [conflictActive] of targetInfluencer = true [
+      ifelse [conflictIntensity] of targetInfluencer > banThreshold [
+        print (word "Beslut: Toxisk konflikt upptäckt! Shadowban utdöms mot influencer ID " [who] of targetInfluencer)
+        set visitedInfluencers lput targetInfluencer visitedInfluencers
+        set proState "State_Shadowbanning"
+      ] [
+        print (word "Beslut: Bra drama upptäckt! Boost utdöms till influencer ID " [who] of targetInfluencer)
+        set visitedInfluencers lput targetInfluencer visitedInfluencers
+        set proState "State_Boosting"
+      ]
+    ] [
+      ; Timern tar slut och influencern är oskyldig
+      if checkTimer <= 0 [
+        print (word "Beslut: Ingen pågående konflikt. Kontroll avslutad för influencer ID " [who] of targetInfluencer)
+        set visitedInfluencers lput targetInfluencer visitedInfluencers
+        ask targetInfluencer [ set is-stopped-by-admin false ]
+        set targetInfluencer nobody
+        set proState "State_Patrullerar"
+      ]
+    ]
+  ]
+end
+
+to State_Shadowbanning
+  ; Intention: Verkställ straff
+  if targetInfluencer != nobody [
+    ask targetInfluencer [
+      if not is-shadowbanned [
+        set is-shadowbanned true
+        set shadowban-target int (followerCount / 2) 
+        set conflictActive false   
+        set reputation 0           
+        set moveSpeed 0            
+        set engagementRadius 0     
+      ]
+    ]
+  ]
+  set targetInfluencer nobody
+  set proState "State_Patrullerar" ; Återgå till grundtillstånd
+end
+
+to State_Boosting
+  ; Intention: Verkställ belöning
+  if targetInfluencer != nobody [
+    let potential-viewers agentBs with [following != [targetInfluencer] of myself] in-radius 25
+    if any? potential-viewers [
+      ask n-of (min list boostPower count potential-viewers) potential-viewers [
+        set following [targetInfluencer] of myself
+        set loyaltyTimer 0
+      ]
+    ]
+    ask targetInfluencer [ set is-stopped-by-admin false ]
+  ]
+  set targetInfluencer nobody
+  set proState "State_Patrullerar" ; Återgå till grundtillstånd
+end
+
+; **********************************************************************************************************************************************************
+; TICK STEG 3: REAKTIVT LAGER (MUSKLERNA OCH REFLEXER)
+; Här utförs rörelser baserat på flaggorna från hjärnan. Inga proaktiva beslut fattas här.
+to reactive_agentCs
+  ; Bakgrundsreflex: Blöder ut följare från bestraffade agenter oberoende av vad polisen gör
+  manage-shadowbans_agentC
+  
+  ask agentCs [
+    ; Reflex 1: Hjärnan har beordrat frysning av mål
+    ifelse freezeTargetFlag [
+      if targetInfluencer != nobody [
+        let police-x xcor
+        let police-y ycor
+        ask targetInfluencer [ setxy police-x police-y ]
+      ]
+    ] [
+      ; Reflex 2: Hjärnan har beordrat rörelse mot specifik måltavla
+      ifelse moveToTargetFlag [
+        if targetInfluencer != nobody [
+          face targetInfluencer
+          fd agentCSpeed
+        ]
+      ] [
+        ; Reflex 3: Hjärnan har beordrat allmän patrullering framåt
+        if moveForwardFlag [
+          fd agentCSpeed
+        ]
+      ]
+    ]
+    
+    ; Ren reflex: Vänd vid väggarna oavsett intention
+    bounce-at-boundary_agentC
+    
+    ; Återställ musklerna inför nästa tick
+    set moveForwardFlag false
+    set moveToTargetFlag false
+    set freezeTargetFlag false
+  ]
+end
+
+to manage-shadowbans_agentC
+  ; Kontinuerligt reaktivt beteende för influencers under Shadowban
+  ask influencers with [is-shadowbanned = true] [
+    set moveSpeed 0
+    set engagementRadius 0
+    
+    let my-followers agentBs with [following = myself]
+    if followerCount > shadowban-target and any? my-followers [
+      if ticks mod 15 = 0 [
+        ask one-of my-followers [
+          set following nobody
+          set color gray
+          set state "state_wander"
+          rt 180 + random 40 - 20
+        ]
+      ]
+    ]
+    
+    if followerCount <= shadowban-target [
+      set is-shadowbanned false
+      set reputation 40        
+      set moveSpeed 0.5        
+      set engagementRadius 20  
+    ]
+  ]
+end
+
+to bounce-at-boundary_agentC
+  ; Ren reflex för miljönavigering
+  if xcor >= max-pxcor or xcor <= min-pxcor [ set heading (- heading) ]
+  if ycor >= max-pycor or ycor <= min-pycor [ set heading (180 - heading) ]
+end

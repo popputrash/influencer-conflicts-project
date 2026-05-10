@@ -1,0 +1,421 @@
+; ********************************************************************************************************************************************************
+;***          influencer.NLS  (Influencer Agent - Reactive Decision-Making Based on Attention Dynamics)                                            ****
+;*********************************************************************************************************************************************************
+; DESCRIPTION OF THE AGENT (REACTIVE ARCHITECTURE)
+; - An influencer agent that competes for follower attention in a social media ecosystem
+; - Makes reactive decisions based on follower count and engagement levels
+; - Creates conflicts when losing followers or engagement to regain attention
+; - Conflicts affect reputation, which in turn affects follower loyalty and retention
+; - Uses reactive rules: sense engagement/followers → detect trends → create conflict if needed
+;
+;*********************************************************************************************************************************************************
+; LOGBOOK OF UPDATES IN THIS FILE
+; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
+; 20260410    Implemented as influencer agent with attention-driven conflict creation                          Maximilian och Ivan
+; 20260307    Initial template provided                                                                        Gion
+;
+
+;********************end logbook ************************************************************************************************************************
+;*********************************************************************************************************************************************************
+; LOCAL VARIABLES (INFLUENCER STATE)
+influencers-own [
+  current-state ; (NORMAL, IN_CONFLICT, RECOVERY, IN_COLLAB, SCOUTING)
+  
+  ; Perception and status variables
+  followerCount        ; current number of followers (agentB) following this influencer
+  engagementRadius     ; radius representing area of influence/engagement
+  engagementLevel      ; current engagement (followers in perception radius)
+  
+  ; Reputation and history tracking
+  reputation           ; trust score (0-100), affects follower loyalty
+  followerHistory      ; list tracking recent follower counts for trend detection
+  engagementHistory    ; list tracking recent engagement levels
+  
+  
+  ; Conflict state
+  conflictActive       ; boolean: currently in conflict state?
+  conflictIntensity    ; current intensity of conflict (0-100)
+  conflictDuration     ; ticks remaining in active conflictz
+  conflictTarget
+  conflictAttackerFlag 
+  
+  
+  ; Decision thresholds
+  minEngagementThreshold    ; minimum acceptable engagement level
+  followerLossThreshold     ; rate of follower loss that triggers conflict
+  reputationDamagePerConflict ; reputation points lost per conflict
+  
+  ticksSinceStableFollowing
+  stableFollowingTimeout
+  followerLossRate
+  
+  ; Movement variables
+  moveSpeed            ; base speed of movement
+  targetX              ; x coordinate of movement target
+  targetY              ; y coordinate of movement target
+  
+  
+  influencerColor      ; permanent unique color for each influencer
+]
+;******************* end local variables *****************************************************************************************************************
+
+;**********************************************************************************************************************************************************
+; SETUP FUNCTIONS
+
+to setup-influencerAgents 
+  create-influencers Number_influencers [
+    set label who
+    set shape "star"
+    set size 2
+    set color yellow
+    
+    set current-state "NORMAL"
+     
+    set influencerColor(5 + ((who * 10) mod 130))
+    set color influencerColor
+    
+    ; Initialize influencer state
+    set followerCount 0              ; will count follower agents in setup
+    set engagementRadius 50          ; perception radius for engagement
+    set engagementLevel 0
+    
+    ; Initialize reputation system
+    set reputation 80                ; start with moderate-to-high reputation
+    set followerHistory []           ; empty history at start
+    set engagementHistory []
+    
+    ; Initialize conflict state
+    set conflictActive false
+    set conflictIntensity 0
+    set conflictDuration 0
+    set conflictTarget nobody
+    set conflictAttackerFlag false
+    
+    ; Set decision thresholds
+    set minEngagementThreshold 3     ; minimum followers within radius
+    set followerLossThreshold 0.1    ; lose >10% triggers conflict
+    set reputationDamagePerConflict 15
+    
+    set followerLossRate 0
+    set ticksSinceStableFollowing 0
+    set stableFollowingTimeout random 800
+    
+    ; Initialize movement
+    set moveSpeed 0.2
+    set targetX random max-pxcor
+    set targetY random max-pycor
+    move-to patch targetX targetY
+  ]
+end
+
+;***************************end setup functions ***********************************************************
+;**********************************************************************************************************************************************************
+; UPDATE ENVIRONMENT INFORMATION (required by main model loop)
+
+to updateEnvironmentInfo_influencers
+  ; Placeholder for compatibility with main model loop
+  ; Actual sensing happens in reactive_influencers
+end
+
+to hybrid_influencer
+  sense-environment-influencer
+  
+  ; REACTIVE LAYER
+  if conflictAttackerFlag [
+    set current-state "IN_CONFLICT"
+    set conflictActive true
+    set conflictAttackerFlag false
+  ]
+  
+  execute-fsm-influencer
+  
+  update-visualization-influencer
+  
+end
+
+to execute-fsm-influencer
+  ;show current-state
+  (ifelse current-state = "NORMAL" [
+    maintain-status-influencer
+    move-normal-behavior
+    (ifelse 
+      engagementLevel < minEngagementThreshold and engagementLevel > 0 [
+      initiate-conflict-influencer "low-engagement"
+      if conflictActive [ set current-state "IN_CONFLICT" ]
+    ]  
+    followerLossRate > 0.5 [
+      if not conflictActive [initiate-conflict-influencer "panic conflict"]
+      if conflictActive [ set current-state "IN_CONFLICT" ]
+    ]
+    ticksSinceStableFollowing > stableFollowingTimeout[
+      initiate-conflict-influencer "stable following"
+      if conflictActive [ set current-state "IN_CONFLICT" ]
+    ]
+      )
+  ]
+  (current-state = "SCOUTING")[
+      ;kolla andra stora influencers vilket typ av content de postar inom
+      ;beräkna om de är värt att byta typ av content
+      
+  ]
+    
+  (current-state = "IN_CONFLICT")[
+      execute-conflict-influencer
+      move-conflict-behavior
+      if conflictActive = false [
+        set current-state "RECOVERY"
+      ]
+      
+  ]
+  (current-state = "IN_COLLAB")[
+      ;TODO
+      
+  ]
+  (current-state = "RECOVERY")[
+      recover-status-influencer
+      move-normal-behavior
+      if reputation > 80 [
+        set current-state "NORMAL"
+      ]
+  ])
+  
+  
+  
+end
+
+;***************************end environment update *****************************************************
+
+;**********************************************************************************************************************************************************
+; REACTIVE SENSING: Perceive current status
+
+to sense-environment-influencer
+  ; Count current followers (agentB agents that are following this influencer)
+  ; This assumes agentB has a "following" variable pointing to their influencer
+  set followerCount count agentBs with [following = myself]
+  
+  ; Measure engagement (followers within engagement radius)
+  let myRadius engagementRadius
+  set engagementLevel count agentBs with [following = myself and distance myself <= myRadius]
+  
+  ; Track history (keep last 5 ticks)
+  set followerHistory lput followerCount followerHistory
+  if length followerHistory > 5 [set followerHistory but-first followerHistory]
+  
+  set engagementHistory lput engagementLevel engagementHistory
+  if length engagementHistory > 5 [set engagementHistory but-first engagementHistory]
+  
+  if length followerHistory >= 2 [
+    let prev-followers item (length followerHistory - 2) followerHistory
+    if prev-followers > 0 [
+      set followerLossRate (prev-followers - followerCount) / prev-followers
+    ]
+  ]
+  
+  
+   ifelse followerLossRate != 0 [
+        set ticksSinceStableFollowing 0
+      ]
+      [
+       set ticksSinceStableFollowing ticksSinceStableFollowing + 1 
+      ]
+  
+  
+end
+
+; CONFLICT MECHANICS
+
+
+to-report get-conflict-candidate
+  let fc followerCount
+  let candidates other influencers with [conflictActive != true and followerCount > fc]
+  
+  report one-of candidates
+end
+
+
+to initiate-conflict-influencer [conflict-reason]
+  ; Start a conflict to regain attention (only if not already in conflict)
+  if not conflictActive [
+    let candidate get-conflict-candidate
+    
+    if candidate != nobody [
+      ; Set own (attacker) state
+      set conflictTarget candidate
+      set conflictActive true
+      let duration 5 + random 30 
+      let intensity 70 + random 30
+      set conflictIntensity intensity
+      set conflictDuration duration
+      
+      ; Set victim (target) state
+      ask conflictTarget [
+        set conflictAttackerFlag true
+        set conflictTarget myself
+        set conflictDuration duration
+        set conflictIntensity intensity
+      ]
+    
+      ; Broadcast conflict event (for observer/followers to detect)
+      if Debug [print (word "Influencer " who " initiated conflict: " conflict-reason " at tick " ticks)]
+    ]
+  ]
+end
+
+to execute-conflict-influencer
+  ; TODO koppla ihop infuencers som bråkar på något sätt
+  ; While in conflict state, reputation decays
+  ; TODO: Implementera något för längd av konfikt som inte är random.
+  ; tex on followlossrate börjar stagnera
+  set reputation (reputation - reputationDamagePerConflict) * random-float 1
+  if reputation < 0 [set reputation 0]
+  
+  ;TODO posta content med mer viralitet eller kontrovers.
+  
+  ; Conflict duration decreases each tick
+  set conflictDuration conflictDuration - 1
+  
+  ; When conflict duration ends, return to normal
+  if conflictDuration <= 0 [
+    set conflictActive false
+    set conflictTarget nobody
+    set conflictIntensity 0
+  ]
+end
+
+to maintain-status-influencer
+  ; Normal operations: reputation slowly recovers if not in conflict
+  
+  ;TODO : post content
+  
+  if reputation < 80 [
+    set reputation reputation + 2
+  ]
+  
+  ; Reputation affects follower retention (followers leave with probability based on low reputation)
+  if reputation < 40 [
+    let departure-chance (1 - (reputation / 100)) * 0.1
+    ask agentBs with [following = myself and random-float 1 < departure-chance] [
+      set following nobody
+    ]
+  ]
+end
+
+to recover-status-influencer
+    ;TODO : post content with higher intensity
+  
+  if reputation < 100 [
+    set reputation reputation + 2
+  ]
+  
+ 
+end
+
+
+;***************************end conflict mechanics ************************************************************
+
+;**********************************************************************************************************************************************************
+; MOVEMENT FUNCTIONS
+
+to move-influencer
+  ifelse conflictActive [
+    ; During conflict: move toward followers to regain attention + move erratically
+    move-conflict-behavior
+  ] [
+    ; Normal behavior: move toward random targets
+    move-normal-behavior
+  ]
+end
+
+to move-normal-behavior
+  ; Pick a new target occasionally (every 20 ticks or when close to current target)
+  if ticks mod 20 = 0 or distance patch targetX targetY < 2 [
+    set targetX random max-pxcor
+    set targetY random max-pycor
+  ]
+  
+  ; Move towards target
+  let destination patch targetX targetY
+  set heading towards destination
+  forward moveSpeed
+end
+
+to move-recovery-behavior
+  move-normal-behavior
+end
+
+to move-conflict-behavior
+  ; During conflict, try to move toward nearest followers to regain attention
+  let nearby-followers agentBs with [following = myself and distance myself < 30]
+  
+  ifelse any? nearby-followers [
+    ; Move toward the center of nearby followers (to regain attention)
+    let nearest-follower min-one-of nearby-followers [distance myself]
+    set heading towards nearest-follower
+    forward moveSpeed * 1.2  ; Move faster toward followers during conflict
+  ] [
+    ; If no nearby followers, move toward any follower
+    let any-follower one-of agentBs with [following = myself]
+    if any-follower != nobody [
+      set heading towards any-follower
+      forward moveSpeed * 1.2
+    ]
+  ]
+  
+  ; Add erratic movement: random turns make movement less predictable
+  rt random 40
+  lt random 40
+  forward moveSpeed * 0.5  ; Additional erratic movement
+end
+
+;***************************end movement functions **********************************************************
+
+;**********************************************************************************************************************************************************
+; ACTION EXECUTION: Visual feedback and state updates
+
+to update-visualization-influencer
+  ; Update color based on reputation
+  set influencerColor (5 + ((who * 10) mod 130))
+  set color influencerColor
+  set label list who current-state
+  
+  ;(ifelse reputation > 70 [
+   ;  set color yellow
+  ;] 
+   ; reputation > 50 [
+    ;  set color orange
+  ;])
+  
+ 
+  ; Pulse size during conflict to show activity
+  ifelse conflictActive [
+    set color red
+  ] [
+    set size 2 + (followerCount / 100)
+  ]
+end
+
+;***************************end action execution ************************************************************
+
+;**********************************************************************************************************************************************************
+; TEST CASE SUPPORT
+
+to override_influencerSetup
+  ; Placeholder for test case overrides
+  ; Can be extended to force specific conflict states for testing
+end
+
+;***************************end test case support ************************************************************
+
+;**********************************************************************************************************************************************************
+; REPORTER FUNCTIONS: Provide observable metrics for monitoring
+
+to-report get-influencer-status
+  ; Returns a list of status information: [follower-count engagement reputation conflict-active]
+  report (list followerCount engagementLevel reputation conflictActive)
+end
+
+to-report get-conflict-intensity
+  ; Returns current conflict intensity for visualization
+  report conflictIntensity
+end
+;***************************end reporter functions *************************************************************

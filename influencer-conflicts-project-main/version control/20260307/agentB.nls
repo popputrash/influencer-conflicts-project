@@ -1,0 +1,263 @@
+; ********************************************************************************************************************************************************
+;***          agentB.NLS  (contains all the code for the agentB)                                                                                    ****
+;*********************************************************************************************************************************************************
+;*********************************************************************************************************************************************************
+; LOGBOOK OF UPDATES IN THIS FILE
+; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
+; 20250423    Initial template of a dummy-breed to be adapted by the project group                               Gion
+;
+;
+;
+;********************end logbook ************************************************************************************************************************
+;*********************************************************************************************************************************************************
+; LOCAL VARIABLES
+agentBs-own [
+  ; finite state machine
+  state;-------------state variable that corresponds to procedure names
+  countTicks
+  follower
+  oldFollower
+  identNr
+  nr
+ 
+  
+  
+  ; some examples of possible local variables, -replace with your own
+  homeLoc;------------home location, where the agent lives
+  localxy;------------current local patch on which the agent is standing on
+  destinationxy;------destination patch to go to
+  destinationRegion;-destination region to go to
+  
+  friendList;---------List of other citizen agents that are considered as friends
+  friend;-------------An agent from the friendList
+  proState ;----------State variable for the proactive states. Enumeration = Study, 
+                      ;Work, Unemployed, ’Walking around’, ’Meeting friends’, ’Go out’, Political, Resignation, Demonstration
+                      ;Pursue of Happiness Goals
+  vWalk ;-------------Value for Walk-desire [0..1]
+  minWalk ;-----------Min-value for Walk-desire after fulfillment of desire
+  thrWalk ;-----------Threshold for Walk-desire
+  dWalk ;-------------Increase of vWalk for every day in percentage
+  
+  ;different help-variables
+  counter; -----------general purpose counter
+  finishedState;------indicates that a state is fulfilled and a new one can be deliberated
+  initialCondition;---flag to indicate if the initial condition is met
+  finalCondition; ----flag to indicate if the final condition is met
+  safespot;---------- indicates if the current spot is save (not empty and not TownSquare)
+  agTimer1;---------- local timer for agents
+  TimerX
+  agAlarm1;
+  deliberationFlag;---flag to restrict one deliberation per evening/weekend
+]
+;******************* end local variables *****************************************************************************************************************
+;**********************************************************************************************************************************************************
+; SETUP FUNCTIONS
+to setup-agentBs
+  ; example of create-agent-function, replace with your own code!
+  create-agentBs Number_AgentA [;Number_AgentA from slider
+    set label who
+    set shape "person" 
+    set size 1
+    set color yellow
+    move-to one-of patches with [region = "house"]
+    ; save the home location
+    set homeLoc patch-here
+    setxy [pxcor] of homeLoc [pycor] of homeLoc 
+    set friendList []
+    set friend []
+    set beliefs []
+    set intentions []
+    set incoming-queue []
+    set destinationxy []
+    set counter 0 ; all-purpose counter
+    set finishedState false
+    set initialCondition false
+    set finalCondition false
+    set agAlarm1 0
+    set proState []
+    set deliberationFlag true
+    ;
+    set follower []
+    set oldFollower []
+    set countTicks 0
+    set identNr 0
+    set state "State_MoveAround"
+    set nr 0
+  ]
+ 
+end ;setup-agentBs
+
+;---- specific setup functions, ; add your own code!
+
+;***************************end setup functions ******************************************************************************************************************
+;************************************************************************************************************************************************************
+; UPDATE BELIEFS
+
+to updateEnvironmentInfo_agentBs
+  ; add your own code here instead
+  
+  ;--- save local position
+  set localxy patch-here
+  ;print (word "agent1 with id: " who " has updated its beliefs")
+
+end ;updateEnvironmentInfo_agentBs
+;***************************end update beliefs ******************************************************************************************************************
+;************************************************************************************************************************************************************
+; REACTIVE SUBSUMPTION HIERARCHY
+to reactive_agentBs
+  ; add your own code here instead
+  ;print (word "agent1 with id: " who "is reactive right now")
+  moveAround_agentB
+end ;reactive_agentBs
+
+;---- specific reactive intention functions
+to moveAround_agentB
+  rt random 50
+  lt random 50
+  fd 1
+end
+
+to moveToDestxy_agentB
+  ifelse localxy != destinationxy [
+        face destinationxy
+        fd 1
+  ] 
+  [ let reg []
+    ask patch-here [set reg region]
+    ;print (word who " arrived at destination: " reg)
+  ]
+end ;moveToDestxy_agentB
+;***************************end reactive subsumption hierarchy ***************************************************************************************************
+;************************************************************************************************************************************************************
+
+
+; Finite State Machine
+; States:
+;   State_MoveAround: --------
+;   State_IdentifyFollower:---
+;   State_Escape:-------------
+;   State_Sanctuary:----------
+
+to State_MoveAround
+  set color yellow
+  ; moving around randomly, on empty patches
+  rt random 50
+  lt random 50
+  fd 1
+  ; make sure the agent moves to empty region within its neighborhood
+  if not (region = "empty") 
+  [
+    let footstep neighborhood with [region = "empty"] 
+    if any? footstep [move-to one-of footstep]
+  ]
+  
+  ; look for indication to be followed
+  ; if only one other agent is nearby and it is the same agent that is still nearby 10 ticks later, be suspicious
+  ;let nearbys other turtles-on neighbors4 - turns out that the follower is too far away
+  ; trying to implement that followers are on the patches behind?
+  let nearbys min-one-of other turtles-on patch-ahead -1 [distance myself]
+  ;set follower min-one-of nearbys [distance myself]; identify the agent that is nearest
+  set follower nearbys
+  
+  if not ((follower = nobody) or (follower = self))
+  [
+    ; test if the same agent follows under 10 ticks
+    
+    ifelse countTicks > 0 
+    [
+      ;test runs
+      ; count how many times the oldfollower was detected
+      if (follower = oldfollower) [ set nr nr + 1]
+      
+      ; test if 10 ticks have passed
+      if (ticks > countTicks + 10)
+      [
+      ;              
+        ;compare if the same follower has appeared at least 5 times
+        if (nr > 4)
+        [
+        ; indication for a follower
+        if Debug [print (word self ": is being followed by " oldfollower)]
+        
+        set state "State_identifyFollower"
+        ]
+        ;reset the test
+        set countTicks 0 ; resetting the counters
+        set nr 0
+        
+      ]
+    ]
+    [;else countTicks = 0, initialize
+      set oldFollower follower ; save the follower to compare with
+      set nr 0
+      set countTicks ticks
+      if Debug [print (word self ": has possible follower: " follower)]
+    ]
+  ]
+  
+          
+end
+
+to State_IdentifyFollower
+  ;stops and stands still to see if the same follower remains close by
+  set color red
+  ; we suspect a specific follower and only need to verify that it is nearby
+  let nearbys other turtles in-radius 1
+  ; checking for three ticks
+  ifelse nr > 3 [
+    set state "State_MoveAround" ; default next state
+    set nr 0
+    ; check if follower was found 3 times
+    if (identNr = 3)[
+      ;definitive a follower
+      if Debug [print (word self " has decided to escape from follower: " follower)]
+      set state "State_Escape"
+    ]
+    set identNr 0
+  ]
+  [; else nr <=3
+    ;check if follower is nearby
+    if (member? follower nearbys) [set identNr IdentNr + 1]; increase the counter everytime the follower is seen
+    ; increase nr
+    set nr nr + 1
+  ]
+  
+end
+
+to State_Escape
+; a follower has been identified from which the agent tries to escape by moving into the zone 'sanctuary'
+  set color orange
+  ; move towards 'sanctuary' until it arrives
+  print (word self " tries to escape, region= " region)
+  ifelse (region = "sanctuary") 
+  [
+    ;arrived at sanctuary
+    ;if Debug []
+    print (word self " arrived in sanctuary")
+    set state "State_Sanctuary"
+  ]
+  [;else not yet at sanctuary
+    let destination min-one-of patches with [region = "sanctuary"] [distance myself]
+    print (word "destination: " destination "of agent: " self)
+    set heading (towards destination) ;face in direction of the sanctuary-patch
+    fd 2; run faster thant the followers
+  ]
+end
+
+to State_Sanctuary
+  set color blue
+  ; move around in the sanctuary-zone
+  let footstep neighborhood with [region = "sanctuary"] 
+    if any? footstep [move-to one-of footstep]
+
+end
+
+
+;*****************************************************************************************************************************************************
+; HELP FUNCTIONS
+
+
+
+;***************************end help functions ***************************************************************************************************
+;*****************************************************************************************************************************************************
+

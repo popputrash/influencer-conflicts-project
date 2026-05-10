@@ -1,0 +1,22 @@
+;globals,nls;*********************************************************************************************************************************************************
+; GLOBAL VARIABLES
+globals [
+  ; Sliders
+  ; Number_AgentA
+  ; Number_AgentB
+  
+  A ;dummy variable, can be removed
+  B ;dummy variable, can be removed
+  ;
+    
+  ;----- Time variables, using the time extension, see https://ccl.northwestern.edu/netlogo/docs/time.html
+  current-time             ;THE CURRENT TIME IN THE SIMULATION
+  start-time               ;START TIME OF THE SIMULATION
+  time-passed              ;TEXT STRING SHOWING HOW MUCH TIME HAS BEEN SIMULATED
+  weeklyFlag
+  dailyFlag
+  ;
+  ; termination variable
+  TERMINATE
+]
+;******************* end global variables *****************************************************************************************************************
