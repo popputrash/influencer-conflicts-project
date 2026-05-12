@@ -26,6 +26,8 @@ influencers-own [
   engagementRadius     ; radius representing area of influence/engagement
   engagementLevel      ; current engagement (followers in perception radius)
   
+  contentType
+  
   ; Reputation and history tracking
   reputation           ; trust score (0-100), affects follower loyalty
   followerHistory      ; list tracking recent follower counts for trend detection
@@ -49,11 +51,12 @@ influencers-own [
   stableFollowingTimeout
   followerLossRate
   
+  postRate
+  
   ; Movement variables
   moveSpeed            ; base speed of movement
   targetX              ; x coordinate of movement target
   targetY              ; y coordinate of movement target
-  
   
   influencerColor      ; permanent unique color for each influencer
 ]
@@ -73,6 +76,10 @@ to setup-influencerAgents
      
     set influencerColor(5 + ((who * 10) mod 130))
     set color influencerColor
+    
+    set contentType random 5
+    set incoming-queue []
+    set postRate 20 + random 100
     
     ; Initialize influencer state
     set followerCount 0              ; will count follower agents in setup
@@ -127,8 +134,14 @@ to hybrid_influencer
     set conflictAttackerFlag false
   ]
   
-  execute-fsm-influencer
+    if ticks mod postRate = 0[
+    post-content
+  ]
   
+  ; PROACTIVE LAYER
+  execute-fsm-influencer
+
+   
   update-visualization-influencer
   
 end
@@ -310,6 +323,13 @@ to recover-status-influencer
  
 end
 
+to post-content
+  let post-msg create-message "content-post"
+  set post-msg add-content word contentType "" post-msg
+  show post-msg
+  broadcast-to agentBs post-msg self
+  
+end
 
 ;***************************end conflict mechanics ************************************************************
 

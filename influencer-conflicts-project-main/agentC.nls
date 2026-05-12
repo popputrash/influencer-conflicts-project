@@ -41,7 +41,7 @@ to setup-agentCs
     set color blue      
     set size 3
     setxy random-xcor random-ycor
-    
+    set incoming-queue []
     set boostPower 2    
     set banThreshold 75 
     set agentCSpeed 0.8

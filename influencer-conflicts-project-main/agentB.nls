@@ -27,6 +27,7 @@ agentBs-own [
     state      ; current reactive state
     loyaltyTimer
     switchCooldown
+  
 ]
 
 
@@ -44,6 +45,7 @@ to setup-agentBs
     set state "state_wander"
     set loyaltyTimer 0
     set switchCooldown 0
+    set incoming-queue []
     update-follower-color
   ]
   
