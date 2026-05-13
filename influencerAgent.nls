@@ -204,11 +204,11 @@ end
 to sense-environment-influencer
   ; Count current followers (agentB agents that are following this influencer)
   ; This assumes agentB has a "following" variable pointing to their influencer
-  set followerCount count agentBs with [following = myself]
+  set followerCount count followers with [following = myself]
   
   ; Measure engagement (followers within engagement radius)
   let myRadius engagementRadius
-  set engagementLevel count agentBs with [following = myself and distance myself <= myRadius]
+  set engagementLevel count followers with [following = myself and distance myself <= myRadius]
   
   ; Track history (keep last 5 ticks)
   set followerHistory lput followerCount followerHistory
@@ -307,7 +307,7 @@ to maintain-status-influencer
   ; Reputation affects follower retention (followers leave with probability based on low reputation)
   if reputation < 40 [
     let departure-chance (1 - (reputation / 100)) * 0.1
-    ask agentBs with [following = myself and random-float 1 < departure-chance] [
+    ask followers with [following = myself and random-float 1 < departure-chance] [
       set following nobody
     ]
   ]
@@ -327,7 +327,7 @@ to post-content
   let post-msg create-message "content-post"
   set post-msg add-content word contentType "" post-msg
   show post-msg
-  broadcast-to agentBs post-msg self
+  broadcast-to followers post-msg self
   
 end
 
@@ -365,7 +365,7 @@ end
 
 to move-conflict-behavior
   ; During conflict, try to move toward nearest followers to regain attention
-  let nearby-followers agentBs with [following = myself and distance myself < 30]
+  let nearby-followers followers with [following = myself and distance myself < 30]
   
   ifelse any? nearby-followers [
     ; Move toward the center of nearby followers (to regain attention)
@@ -374,7 +374,7 @@ to move-conflict-behavior
     forward moveSpeed * 1.2  ; Move faster toward followers during conflict
   ] [
     ; If no nearby followers, move toward any follower
-    let any-follower one-of agentBs with [following = myself]
+    let any-follower one-of followers with [following = myself]
     if any-follower != nobody [
       set heading towards any-follower
       forward moveSpeed * 1.2

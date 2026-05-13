@@ -1,0 +1,71 @@
+; ********************************************************************************************************************************************************
+;***          testcases.nls  (contains the code for the specific testfunctions)
+;*********************************************************************************************************************************************************
+; TEST-CASE VERSION NUMMER: 
+;*********************************************************************************************************************************************************
+; DESCRIPTION OF THE TESTCASE
+; - Skapar 2 influencers med olika reputation (40 vs 90)
+; - Skapar 6 följare
+; - Tvingar konflikt på influencern med lägst reputation från tick 1
+; - När konflikt detekteras nära en följare → följaren byter till influencern med högst reputation
+;*********************************************************************************************************************************************************
+; LOGBOOK OF UPDATES IN THIS FILE
+; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
+; 20260511    Komplett omskrivning: conflict-override via hybrid_influencer + reactive_agentBs
+;
+;*********************************************************************************************************************************************************
+
+globals [
+  conflict-awareness-radius
+]
+
+;*********************************************************************************************************************************************************
+to setup-testagents
+
+  ask turtles [ die ]
+
+ 
+  
+  
+  
+  
+
+  create-influencers 2 [
+    
+  ]
+
+  create-followers 6 [
+    
+  ]
+
+
+ 
+end
+;****************** end setup-testagents **********************************************************
+
+;*********************************************************************************************************************************************************
+to monitor_testagents
+
+  ; Kör influencernas riktiga beteende så conflictActive hålls levande
+  ask influencers [ hybrid_influencer ]
+
+  ; Kör följarnas beteende med conflict-override
+  ask followers [ monitor_follower ]
+
+end
+
+;*********************************************************************************************************************************************************
+to monitor_follower
+
+
+  
+
+end
+
+;*********************************************************************************************************************************************************
+to override_influencersteup
+  ; Anropas från setup-testagents — konflikten sätts direkt
+  ; där via ask min-one-of, så denna stub behövs ej men
+  ; hålls kvar för kompatibilitet med influencerAgent.nls
+end
+;*********************************************************************************************************************************************************

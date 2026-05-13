@@ -1,5 +1,5 @@
 ; ********************************************************************************************************************************************************
-;***          agentB.NLS  (contains all the code for the agentB)                                                                                    ****
+;***          followerAgent.NLS  (contains all the code for the agentB)                                                                                    ****
 ;*********************************************************************************************************************************************************
 ; DESCRIPTION OF THE AGENT
 ; - A follower agent that reacts to nearby influencers in a social media ecosystem
@@ -13,20 +13,42 @@
 ;*********************************************************************************************************************************************************
 ; LOGBOOK OF UPDATES IN THIS FILE
 ; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
-; 20250423    Initial template of a dummy-breed to be adapted by the project group                               Gion
-; 20260413    
+; 13/05        The agent name has been changed from agentB to follower                                        Rachid  
+; 14/05        Created new function called addFriends                                                           Rachid
+; 13/04        Created new function called sendmsg                                                              Rachid
+; 13/05        Created new function called readmsg                                                              Rachid
+; 14/05        Created new function called readcontent                                                          Rachid 
+;   
 ;
 ;
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; LOCAL VARIABLES
 
-agentBs-own [
+followers-own [
     following  ; current favorite influencer 
     resistance ; loyalty strength against being stolen
     state      ; current reactive state
     loyaltyTimer
     switchCooldown
+  
+  
+  ;new code for debug in case ---------------------------------------------------------------------------
+  fmax;-----------maximum members of friends
+  friend;---------potential friend to add or follow
+  friendList;-----agent set of other citizen agents that are considered as friends
+  friends;--------list with numbers of agents (same as friendList, but as a sorted list)
+  
+  
+  followFlag;-----Flag to indicate the situation of following a friend
+  collectFriends;-Flag to indicate the situation of adding agents to friendList
+  friendFound;--- Flag to indicate when friend has been found
+  
+  nearbyAgents
+  vision
+  
+  inbox        ; list of messages received from friends
+  lastMessage  ; last message this agent sent
   
 ]
 
@@ -34,9 +56,9 @@ agentBs-own [
 ;******************* end local variables *****************************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; SETUP FUNCTIONS
-to setup-agentBs
+to setup-followerAgent
 
-  create-agentBs Number_AgentB  [
+  create-followers Number_AgentB  [
     setxy random-xcor random-ycor
     set shape "person"
     set size 0.5
@@ -47,6 +69,22 @@ to setup-agentBs
     set switchCooldown 0
     set incoming-queue []
     update-follower-color
+    
+    
+ 
+    
+    ;new code for debug in case ----------------------------------------------------------------------
+    set friend []
+    set friendList turtle-set []
+    set friends ""
+    set vision 7 ;
+    set fmax 1  ; max antal vänner
+    set collectFriends false
+    
+    set inbox []
+    
+   
+     
   ]
   
 end ;setup-agentBs
@@ -54,7 +92,7 @@ end ;setup-agentBs
 ;**********************************************************************************************************************************************************
 ; UPDATE ENVIRONMENT INFORMATION (required by main model loop)
 
-to updateEnvironmentInfo_agentBs
+to updateEnvironmentInfo_followers
   ; Placeholder for compatibility with main loop
 end
 
@@ -62,16 +100,27 @@ end
 ;**********************************************************************************************************************************************************
 ; REACTIVE DECISION HIERARCHY
 
-to reactive_agentBs
-  update-state_agentB
-
+to reactive_followers
+  
+  update-state_follower
   if state = "state_wander" [
     state_wander
+    ;readContent
+    sendmsg
+    readmsg
+    
+    
+         
     stop
   ]
 
   if state = "state_follow" [
     state_follow
+    ;readContent
+    sendmsg
+    readmsg
+    
+        
     stop
   ]
 
@@ -79,13 +128,18 @@ to reactive_agentBs
     state_defend-loyalty
     stop
   ]
+  
+ 
+
+  
+ 
 end
 
 ;***************************end reactive hierarchy ********************************************************************************************************
 
 ;**********************************************************************************************************************************************************
 ; STATE UPDATE
-to update-state_agentB
+to update-state_follower
   if switchCooldown > 0 [
     set switchCooldown switchCooldown - 1
   ]
@@ -104,6 +158,7 @@ to update-state_agentB
   ]
 
   set state "state_follow"
+  
 end
 
 
@@ -117,6 +172,7 @@ to state_wander
   fd speed
   bounce-at-boundary
   try-adopt-influencer
+  addFriends
 end
 
 to state_follow
@@ -187,6 +243,7 @@ to state_defend-loyalty
 end
 
 
+
 ;***************************end finite state machine ******************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; INFLUENCER SELECTION
@@ -229,6 +286,131 @@ to reevaluate-influencer-choice
   ]
 end
 
+
+
+;new code  ---------------------------------------------------------------------------------------------------------
+
+
+
+to addFriends
+  
+   if (count friendList >= fmax) [ stop ]
+  
+  
+  ; adds agents nearby to the friendList
+  ; OBS: does not count how many that end up in the list!
+  set nearbyAgents other followers in-radius vision
+  if any? nearbyAgents [
+    ;print (word "agent " self " in any? nearbys" )
+    set friend min-one-of nearbyAgents [distance myself]; identify the agent that is nearest
+    ; make sure friend is not the agent itself
+    if not (friend = self) [; only bother if it is not myself
+                            ; if the list of friends is empty, add the agent
+      ifelse (not any? turtle-set friendList) [ set friendList turtle-set friend ]  ;
+      ;ifelse (empty? friendList) [set friendList friend]
+      [
+            ;add the friend to the friendList
+            ;set friendList lput friend friendList
+            set friendList (turtle-set friend friendList)
+            set friends sort friendList
+        ;print (word "agent " self " in added to friendList" )
+        
+       
+      ]
+          
+    ]  
+  ] 
+end
+
+
+
+to sendmsg
+  ;here we send 
+  ;we first check if we have any friends in the freind list before we begin
+  ;after the check for friends we create the msg and sends only to the follower agent simple and clean work.
+  ;last part is teh print we can remove beacuse i used it to debug.
+  
+  if not any? turtle-set friendList [ stop ]
+  if ticks mod 100 != 0 [ stop ]
+  
+  let me self
+  let msgContent "Hej! ska vi följa Nicki Minaj"  
+  
+  ask turtle-set friendList with [breed = followers] [ 
+    let msg create-message "" 
+    
+    set msg add-receiver [who] of myself msg
+    set msg add-content msgContent msg  
+    send msg
+    
+    
+    ; print (word "Follower " me " skickade: " msgContent)
+  ]
+end
+
+
+
+to readmsg
+  let msg get-message
+  if msg = "no_message" [ stop ]
+  
+  ;here is the important part 
+  ;we get the msg---read the massage--- and reaply to the massage 
+  
+  let performative get-performative msg
+  let sender get-sender msg
+  let content get-content msg  
+  
+  if performative = "" [
+    
+   ;simple print to show the communcaation in the terminal
+    ;print (word "Follower " self " fick meddelande från Follower " sender)
+    ;print (word "Innehåll: " content)
+    
+    ;;answer
+    let replyContent "Ja"  
+    let reply create-reply "hej" msg
+    set reply add-content replyContent reply
+    send reply
+    
+   
+    ;print (word "Follower " self " svarade: " replyContent)
+  ]
+end
+
+
+
+;This is not finished yet i need more time to figur out how to react to content 
+; TODO 
+
+to readContent
+  
+  if empty? incoming-queue [ stop ]
+  
+  let msg last incoming-queue
+  set incoming-queue but-last incoming-queue
+  
+  let sender get-sender msg
+  let content get-content msg
+  
+  ; om avsändaren är din influencer, berätta för vänner
+  if sender = following [
+    if any? turtle-set friendList [
+      ask turtle-set friendList [
+        ; byt till samma influencer om du inte redan följer den
+        if following != sender [
+          set following sender
+          set loyaltyTimer 0
+          set switchCooldown 20
+          if Debug [ print (word self " bytte till " sender " tack vare en vän") ]
+        ]
+      ]
+    ]
+  ]
+end
+
+
+
 ;***************************end influencer selection ******************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; CONFLICT / STEALING SUPPORT
@@ -256,6 +438,9 @@ to-report compute-hold-force [defender-agent]
   ; weaker hold than before so stealing can actually happen
   report rep + resistance + (loyaltyTimer * 0.05)
 end
+
+
+
 
 ;***************************end conflict support **********************************************************************************************************
 ;**********************************************************************************************************************************************************

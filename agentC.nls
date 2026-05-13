@@ -177,7 +177,7 @@ end
 to State_Boosting
   ; Intention: Verkställ belöning
   if targetInfluencer != nobody [
-    let potential-viewers agentBs with [following != [targetInfluencer] of myself] in-radius 25
+    let potential-viewers followers with [following != [targetInfluencer] of myself] in-radius 25
     if any? potential-viewers [
       ask n-of (min list boostPower count potential-viewers) potential-viewers [
         set following [targetInfluencer] of myself
@@ -236,7 +236,7 @@ to manage-shadowbans_agentC
     set moveSpeed 0
     set engagementRadius 0
     
-    let my-followers agentBs with [following = myself]
+    let my-followers followers with [following = myself]
     if followerCount > shadowban-target and any? my-followers [
       if ticks mod 15 = 0 [
         ask one-of my-followers [
