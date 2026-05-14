@@ -1,191 +1,128 @@
 ; ********************************************************************************************************************************************************
-;***          followerAgent.NLS  (contains all the code for the agentB)                                                                                    ****
+;***  followerAgent.NLS  (contains all the code for the  follower Agent)                                                                                    ****
 ;*********************************************************************************************************************************************************
 ; DESCRIPTION OF THE AGENT
-; - A follower agent that reacts to nearby influencers in a social media ecosystem
-; - If inside an influencer's radius, it adopts that influencer as its current favorite (following)
-; - It moves toward its favorite influencer and copies that influencer's color
-; - During influencer conflict, it may be "stolen" by another influencer depending on attack force vs loyalty
-; - Loyalty is modeled through resistance, which depends on the reputation of the followed influencer
-; - Resistance is capped to avoid unrealistic immunity
+; followerAgent represents the "follower" agents in the model. 
+; They are reactive to their environment and have a simple decision hierarchy that prioritizes immediate surroundings and influencer choices. 
+; They can be influenced by nearby agentAs, but also have a boredom mechanic that may cause them to switch influencers or wander if they feel "unstimulated". 
+; They can also be "converted" by excited followers.
 ;
 ;*********************************************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; LOGBOOK OF UPDATES IN THIS FILE
 ; --Date--- |-----Description--------------------------------------------------------------------------------|---Person(s)-------------------------------
-; 13/05        The agent name has been changed from agentB to follower                                        Rachid  
-; 14/05        Created new function called addFriends                                                           Rachid
-; 13/04        Created new function called sendmsg                                                              Rachid
-; 13/05        Created new function called readmsg                                                              Rachid
-; 14/05        Created new function called readcontent                                                          Rachid 
-;   
-;
+; 20250423    Initial template of a dummy-breed to be adapted by the project group                               Gion
+; 20260501    Added existing code from the reactive model.                                                       Mohammad Baraa Said  
+; 20260501    Added proactive layer with boredom mechanic and global trend scouting.                             Mohammad Baraa Said
+; 20260502    Added gossip mechanic for excited followers to convert nearby neutrals.                            Mohammad Baraa Said 
+; 20260503    fine-tuned the proactive mechanics and added more comments for clarity.                            Mohammad Baraa Said
+; 20260503    Code refinement and bug fixes.                                                                     Mohammad Baraa Said                     
+; 20260514    Created new function called addFriends                                                             Rachid
+; 20260513    Created new function called sendmsg                                                                Rachid
+; 20260513    Created new function called readmsg                                                                Rachid
+; 20260514    Created new function called readcontent                                                            Rachid                                                               
+; 20260514    integrated the social part into main code                                                          Mohammad Baraa Said
 ;
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
 ; LOCAL VARIABLES
-
 followers-own [
-    following  ; current favorite influencer 
-    resistance ; loyalty strength against being stolen
-    state      ; current reactive state
-    loyaltyTimer
-    switchCooldown
+    following         ; current favorite influencer 
+    resistance        ; loyalty strength against being stolen
+    state             ; current reactive state
+    loyaltyTimer      ; how long they've been following the current influencer
+    switchCooldown    ; cooldown timer to prevent rapid switching
+    boredom           ; Internal timer for proactive behavior
+    target-state      ; Temporarily holds the decision made by the layers
+    global-scan-timer ; Timer for how often to check global trends
+    excitement        ; Internal timer for gossip mechanic
+
+
+    fmax              ; maximum members of friends
+    friend            ; potential friend to add or follow
+    friendList        ; agent set of other citizen agents that are considered as friends
+    friends           ; list with numbers of agents (same as friendList, but as a sorted list)
+    followFlag        ;Flag to indicate the situation of following a friend
+    collectFriends    ;Flag to indicate the situation of adding agents to friendList
+    friendFound       ; Flag to indicate when friend has been found
+    nearbyAgents
+    vision
+    inbox             ; list of messages received from friends
+    lastMessage       ; last message this agent sent
+    favContent
+   
   
-  
-  ;new code for debug in case ---------------------------------------------------------------------------
-  fmax;-----------maximum members of friends
-  friend;---------potential friend to add or follow
-  friendList;-----agent set of other citizen agents that are considered as friends
-  friends;--------list with numbers of agents (same as friendList, but as a sorted list)
-  
-  
-  followFlag;-----Flag to indicate the situation of following a friend
-  collectFriends;-Flag to indicate the situation of adding agents to friendList
-  friendFound;--- Flag to indicate when friend has been found
-  
-  nearbyAgents
-  vision
-  
-  inbox        ; list of messages received from friends
-  lastMessage  ; last message this agent sent
-  
-  followFriend;---selected friend to follow
+   
   
 ]
-
-
 ;******************* end local variables *****************************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; SETUP FUNCTIONS
 to setup-followerAgent
-
-  create-followers Number_AgentB  [
-    setxy random-xcor random-ycor
+  create-followers  Number_AgentB  [
     set label who
+    setxy random-xcor random-ycor
     set shape "person"
     set size 0.5
     set following nobody
     set resistance base-resistance
-    set state "state_wander"
     set loyaltyTimer 0
     set switchCooldown 0
-    set incoming-queue []
+    set state "state_wander"
+    set target-state "state_wander"
+    set boredom random 50             ; Start with random boredom so they don't all leave at once
+    set global-scan-timer random 200  
+    set excitement random 100
     update-follower-color
-    
-    
- 
-    
-    ;new code for debug in case ----------------------------------------------------------------------
+
     set friend []
-    set followFriend []
+    
     set friendList turtle-set []
     set friends ""
     set vision 7 ;
-    set fmax 1  ; max antal vänner
-    set collectFriends false
+    set fmax 10  ; max antal vänner
+
     
-    set inbox []
     
-   
-     
+    set incoming-queue []      ; MUST EXSIST TO FUNCTION
   ]
-  
 end ;setup-agentBs
+
+to hybrid_followers
+  evaluate-reactive-layer
+  evaluate-proactive-layer
+  execute-hybrid-state
+end
 
 ;**********************************************************************************************************************************************************
 ; UPDATE ENVIRONMENT INFORMATION (required by main model loop)
-
 to updateEnvironmentInfo_followers
   ; Placeholder for compatibility with main loop
 end
-
 ;***************************end environment update ********************************************************************************************************
 ;**********************************************************************************************************************************************************
-; REACTIVE DECISION HIERARCHY
-
-to reactive_followers
-  
-  update-state_follower
-  if state = "state_wander" [
-    state_wander
-    followfriendAgent
-    ;readContent
-    sendmsg
-    readmsg
-    
-    
-         
-    stop
-  ]
-
-  if state = "state_follow" [
-    state_follow
-    ;readContent
-    sendmsg
-    readmsg
-    
-        
-    stop
-  ]
-
-  if state = "state_defend-loyalty" [
-    state_defend-loyalty
-    stop
-  ]
-  
- 
-
-  
- 
-end
-
-;***************************end reactive hierarchy ********************************************************************************************************
-
-;**********************************************************************************************************************************************************
-; STATE UPDATE
-to update-state_follower
-  if switchCooldown > 0 [
-    set switchCooldown switchCooldown - 1
-  ]
-  
-  if following = nobody [
-    try-adopt-influencer
-    if following = nobody [
-      set state "state_wander"
-      stop
-    ]
-  ]
-
-  if [conflictActive] of following [
-    set state "state_defend-loyalty"
-    stop
-  ]
-
-  set state "state_follow"
-  
-end
-
-
-;***************************end state update **************************************************************************************************************
-;**********************************************************************************************************************************************************
 ; FINITE STATE MACHINE
+; States:
+; Wander: is the default state where followers move randomly.
+; Follow: is the state where followers move towards their chosen influencer.
+; Defend Loyalty: is a reactive state triggered by an active conflict involving their influencer, 
+; where they evaluate whether to stay loyal or switch to the attacker.
 
+; Default wandering behavior when not following anyone
 to state_wander
   update-follower-color
   rt random 50 - random 50
   fd speed
   bounce-at-boundary
-  try-adopt-influencer
   addFriends
 end
 
+; Followers move towards their influencer, periodically reevaluate and may switch to better options, with weakly committed ones occasionally exploring alternatives.
 to state_follow
   set loyaltyTimer loyaltyTimer + 1
   update-resistance
   update-follower-color
 
-  ; re-evaluate more often so influencer counts can change
   if ticks mod 20 = 0 and loyaltyTimer > 15 [
   reevaluate-influencer-choice
   ]
@@ -198,22 +135,8 @@ to state_follow
       set following alt
       set loyaltyTimer 0
       set switchCooldown 25
-  ]
-]
-
-  ; if follower drifts too far from current influencer, it may detach
-  if following != nobody [
-    if distance following > ([engagementRadius] of following * 1.75) [
-      if loyaltyTimer < 15 and random-float 1 < 0.08 [
-        set following nobody
-        set loyaltyTimer 0
-        set switchCooldown 10
-        set state "state_wander"
-        stop
     ]
   ]
-]
-
   if following != nobody [
     face following
     fd speed
@@ -221,79 +144,166 @@ to state_follow
   ]
 end
 
+; In the defend loyalty state, followers will evaluate the strength of the attack against their current influencer.
+; If the attack is strong enough, they may switch allegiance to the attacker.
 to state_defend-loyalty
   set loyaltyTimer loyaltyTimer + 1
   update-resistance
   update-follower-color
 
   let attacker get-attacker-for following
-
   if attacker != nobody and following != nobody [
-    let attack-force compute-attack-force attacker
-    let hold-force compute-hold-force following
-
-    if attack-force > hold-force [
+    if compute-attack-force attacker > compute-hold-force following [
       set following attacker
       set loyaltyTimer 0
       set switchCooldown 20
     ]
   ]
+end
 
-  if following = nobody [
-    set state "state_wander"
+to execute-hybrid-state
+  set state target-state
+  if state = "state_wander"[ 
+    state_wander 
+    followfriend
+    ;readContent
+    ;sendmsg
+    ;readmsg        
   ]
+
+  if state = "state_follow"[ 
+    state_follow
+    
+    ;readContent
+    ;sendmsg
+    ;readmsg          
+  ]
+
+  if state = "state_defend-loyalty" [ 
+    state_defend-loyalty  
+  ]
+end
+;***************************end finite state machine ******************************************************************************************************
+;**********************************************************************************************************************************************************
+; LAYER 1: REACTIVE DECISION-MAKING
+to evaluate-reactive-layer
+  set target-state "state_wander"
+  if switchCooldown > 0 [ set switchCooldown switchCooldown - 1 ]
+
+  ; drop a distant influencer if still newly attached
+  if following != nobody and distance following > ([engagementRadius] of following * 1.75) [
+    if loyaltyTimer < 15 and random-float 1 < 0.08 [
+      set following nobody  set loyaltyTimer 0  set switchCooldown 10
+    ]
+  ]
+
+  if following = nobody [ try-adopt-influencer ]
+
   if following != nobody [
-    set state "state_follow"
+    set target-state "state_follow"
+    if [conflictActive] of following [ set target-state "state_defend-loyalty" ]
   ]
 end
 
 
+; LAYER 2: PROACTIVE DECISION-MAKING
+to evaluate-proactive-layer
+  ; ---------------------------------------------------------
+  ; 1. BOREDOM MECHANIC 
+  ; ---------------------------------------------------------
+  set boredom boredom + 1
+  
+  if target-state = "state_follow" [
+    if boredom > 150 [
+      set following nobody       
+      set target-state "state_wander" 
+      set switchCooldown 20      
+      set boredom 0              
+    ]
+  ]
+  
+  if target-state = "state_defend-loyalty" [
+    set boredom 0
+  ]
 
-;***************************end finite state machine ******************************************************************************************************
+  ; ---------------------------------------------------------
+  ; 2. GLOBAL TREND SCOUTING
+  ; ---------------------------------------------------------
+  set global-scan-timer global-scan-timer + 1
+  
+  ; Only check global trends if we are peacefully following someone
+  if target-state = "state_follow" and global-scan-timer > 200 [
+    set global-scan-timer 0 ; Reset the timer
+    
+    ; Look at the absolute biggest influencer on the whole map
+    let global-star max-one-of influencers [reputation]
+    
+    if global-star != nobody and global-star != following [
+      ; Proactive decision: If the global star's reputation is 50% higher than my current one...
+      if [reputation] of global-star > ([reputation] of following * 1.5) [
+        set following global-star  ; Proactively switch targets!
+        set switchCooldown 30
+        set boredom 0
+        set excitement 0
+      ]
+    ]
+  ]
+
+  ; ---------------------------------------------------------
+  ; 3. GOSSIP MECHANIC
+  ; ---------------------------------------------------------
+  ; Agents get excited over time while following
+  if target-state = "state_follow" [
+    set excitement excitement + 1
+    
+    if excitement > 100 [
+      ; Look for a neutral nearby follower, not an influencer
+      let my-influencer following
+      let potential-convert one-of other followers in-radius 2 with [following = nobody]
+      
+      if potential-convert != nobody and my-influencer != nobody [
+        ask potential-convert [
+          set following my-influencer
+          set state "state_follow"
+          set target-state "state_follow"
+          set loyaltyTimer 0
+          set switchCooldown 20
+        ]
+        
+        set excitement 0
+      ]
+    ]
+   ]
+end
+;*****************************************end Layers ******************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; INFLUENCER SELECTION
 to try-adopt-influencer
   let candidates influencers with [distance myself <= engagementRadius]
-
   if any? candidates [
-    ; pick the strongest nearby option when unattached
-    let best-choice max-one-of candidates [reputation - distance myself]
-    set following best-choice
-    set loyaltyTimer 0
-    set switchCooldown 15
-    update-resistance
-    update-follower-color
+    set following max-one-of candidates [reputation - distance myself]
+    set loyaltyTimer 0  set switchCooldown 15
+    update-resistance  update-follower-color
   ]
 end
 
 to reevaluate-influencer-choice
-  if following = nobody [ stop ]
-  if switchCooldown > 0 [ stop ]
-
+  if following = nobody or switchCooldown > 0 [ stop ]
   let candidates influencers with [distance myself <= engagementRadius]
   if not any? candidates [ stop ]
 
-  let best-choice max-one-of candidates [reputation - distance myself]
-  if best-choice = following [ stop ]
+  let best max-one-of candidates [reputation - distance myself]
+  if best = following [ stop ]
 
   let current-score ([reputation] of following) - distance following
-  let best-score ([reputation] of best-choice) - distance best-choice
+  let best-score    ([reputation] of best)      - distance best
+  ; hysteresis: only switch when the alternative is clearly better
+  let threshold 6 + (loyaltyTimer * 0.12) + (resistance * 0.05)
 
-  ; stronger hysteresis: followers only switch when the alternative is clearly better
-  let switching-threshold 6 + (loyaltyTimer * 0.12) + (resistance * 0.05)
-
-  if best-score > current-score + switching-threshold [
-    if random-float 1 < 0.35 [
-      set following best-choice
-      set loyaltyTimer 0
-      set switchCooldown 30
-    ]
+  if best-score > current-score + threshold and random-float 1 < 0.35 [
+    set following best  set loyaltyTimer 0  set switchCooldown 30
   ]
 end
-
-
-
-;new code  ---------------------------------------------------------------------------------------------------------
 
 
 to addFriends
@@ -325,6 +335,49 @@ to addFriends
     ]  
   ] 
 end
+
+
+;This function is all about following another follower agent that is in freindlist if there is any
+; runs only in wander state to not get in conflict with the follwoing behavier for the influencer
+to followfriend
+  ; Follows the nearest friend from friendList
+  
+  ; Check that friendList is not empty
+  if not any? turtle-set friendList [ stop ]
+  
+  ; Pick the nearest friend from the friendList
+  let target min-one-of turtle-set friendList [distance myself]
+  
+  if target = nobody [ stop ]
+  
+  ; Move toward target only if not on the same spot
+  if ([list xcor ycor] of self) != ([list xcor ycor] of target) [
+    set heading towards target
+    fd 1
+  ]
+  
+  ; Check if we've reached the friend
+  set nearbyAgents other turtles in-radius vision
+  if any? nearbyAgents [
+    if member? target nearbyAgents [
+      set friendFound true
+      ;TO DO 
+      ;what happens when friend is found spread content 
+      
+      if [following] of target != nobody [
+        set following [following] of target  ; kopiera vännens influencer
+        set loyaltyTimer 0
+        set switchCooldown 15
+      ]
+    ]
+  ]
+  
+ ; if Debug [ print (word "Follower " self " försöker nå vän " target) ]
+end
+
+;--------------------------------------------------------------------------------------------------------------
+
+;new code need second opinion on how to implement
 
 
 to sendmsg
@@ -382,137 +435,84 @@ to readmsg
 end
 
 
-
 ;This is not finished yet i need more time to figur out how to react to content 
 ; TODO 
 
 to readContent
-  
   if empty? incoming-queue [ stop ]
   
-  let msg last incoming-queue
-  set incoming-queue but-last incoming-queue
+  let msg first incoming-queue
+  set incoming-queue but-first incoming-queue
   
-  let sender get-sender msg
+ 
+  let sender-id get-sender msg
   let content get-content msg
   
-  ; om avsändaren är din influencer, berätta för vänner
-  if sender = following [
-    if any? turtle-set friendList [
-      ask turtle-set friendList [
-        ; byt till samma influencer om du inte redan följer den
-        if following != sender [
-          set following sender
-          set loyaltyTimer 0
-          set switchCooldown 20
-          if Debug [ print (word self " bytte till " sender " tack vare en vän") ]
-        ]
-      ]
-    ]
-  ]
+
+  let sender-agent turtle (read-from-string sender-id)
+  if sender-agent = nobody [ stop ]
+  if not ([breed] of sender-agent = influencers) [ stop ]
+  
+  
+  let content-type content
+  
+  react-to-content content-type sender-agent
+  
 end
 
 
-
-;This function is all about following another follower agent that is in freindlist if there is any
-; runs only in wander state to not get in conflict with the follwoing behavier for the influencer
-to followfriendAgent
-  ; Follows the nearest friend from friendList
-  
-  ; Check that friendList is not empty
-  if not any? turtle-set friendList [ stop ]
-  
-  ; Pick the nearest friend from the friendList
-  let target min-one-of turtle-set friendList [distance myself]
-  
-  if target = nobody [ stop ]
-  
-  ; Move toward target only if not on the same spot
-  if ([list xcor ycor] of self) != ([list xcor ycor] of target) [
-    set heading towards target
-    fd 1
-  ]
-  
-  ; Check if we've reached the friend
-  set nearbyAgents other turtles in-radius vision
-  if any? nearbyAgents [
-    if member? target nearbyAgents [
-      set friendFound true
-    ]
-  ]
-  
- ; if Debug [ print (word "Follower " self " försöker nå vän " target) ]
+; to do 
+; 
+to react-to-content [content-type sender-agent]
+  ifelse content-type = "2" [
+    ; TODO
+  ] [
+  ifelse content-type = "3" [
+    ; TODO
+  ] [
+  ifelse content-type = "4" [
+    ; TODO
+  ] [
+   
+  ]]]
 end
-
-
 ;***************************end influencer selection ******************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; CONFLICT / STEALING SUPPORT
-to-report get-attacker-for [defender-agent]
-  let attackers influencers with [self != defender-agent and conflictActive]
-
-  if any? attackers [
-    report max-one-of attackers [reputation + conflictIntensity - distance myself]
-  ]
-
-  report nobody
+to-report get-attacker-for [defender]
+  let attackers influencers with [self != defender and conflictActive]
+  ifelse any? attackers
+    [ report max-one-of attackers [reputation + conflictIntensity - distance myself] ]
+    [ report nobody ]
 end
 
-to-report compute-attack-force [attacker-agent]
-  let rep [reputation] of attacker-agent
-  let intensity [conflictIntensity] of attacker-agent
-  let dist distance attacker-agent
-
-  report rep + (0.35 * intensity) - (0.4 * dist)
+to-report compute-attack-force [a]
+  report [reputation] of a + (0.35 * [conflictIntensity] of a) - (0.4 * distance a)
 end
 
-to-report compute-hold-force [defender-agent]
-  let rep [reputation] of defender-agent
-
-  ; weaker hold than before so stealing can actually happen
-  report rep + resistance + (loyaltyTimer * 0.05)
+to-report compute-hold-force [d]
+  report [reputation] of d + resistance + (loyaltyTimer * 0.05)
 end
-
-
-
-
 ;***************************end conflict support **********************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; HELP FUNCTIONS
 to bounce-at-boundary
-  if xcor >= max-pxcor [
-    set xcor max-pxcor
-    set heading (- heading)
-  ]
-  if xcor <= min-pxcor [
-    set xcor min-pxcor
-    set heading (- heading)
-  ]
-  if ycor >= max-pycor [
-    set ycor max-pycor
-    set heading (180 - heading)
-  ]
-  if ycor <= min-pycor [
-    set ycor min-pycor
-    set heading (180 - heading)
-  ]
+  if xcor >= max-pxcor [ set xcor max-pxcor  set heading (- heading) ]
+  if xcor <= min-pxcor [ set xcor min-pxcor  set heading (- heading) ]
+  if ycor >= max-pycor [ set ycor max-pycor  set heading (180 - heading) ]
+  if ycor <= min-pycor [ set ycor min-pycor  set heading (180 - heading) ]
 end
 
 to update-follower-color
-  ifelse following = nobody [
-    set color gray
-  ] [
-    set color [color] of following
-  ]
+  ifelse following = nobody [ set color gray ] [ set color [color] of following ]
 end
 
 to update-resistance
   ifelse following != nobody [
-    set resistance min (list max-resistance
-      (base-resistance + resistance-factor * [reputation] of following))
+    set resistance min (list max-resistance (base-resistance + resistance-factor * [reputation] of following))
   ] [
     set resistance base-resistance
   ]
 end
-
 ;***************************end help functions ************************************************************************************************************
+;**********************************************************************************************************************************************************
