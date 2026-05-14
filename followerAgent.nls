@@ -441,7 +441,7 @@ to followfriendAgent
     ]
   ]
   
-  if Debug [ print (word "Follower " self " försöker nå vän " target) ]
+ ; if Debug [ print (word "Follower " self " försöker nå vän " target) ]
 end
 
 
