@@ -50,6 +50,8 @@ followers-own [
   inbox        ; list of messages received from friends
   lastMessage  ; last message this agent sent
   
+  followFriend;---selected friend to follow
+  
 ]
 
 
@@ -60,6 +62,7 @@ to setup-followerAgent
 
   create-followers Number_AgentB  [
     setxy random-xcor random-ycor
+    set label who
     set shape "person"
     set size 0.5
     set following nobody
@@ -75,6 +78,7 @@ to setup-followerAgent
     
     ;new code for debug in case ----------------------------------------------------------------------
     set friend []
+    set followFriend []
     set friendList turtle-set []
     set friends ""
     set vision 7 ;
@@ -105,6 +109,7 @@ to reactive_followers
   update-state_follower
   if state = "state_wander" [
     state_wander
+    followfriendAgent
     ;readContent
     sendmsg
     readmsg
@@ -291,7 +296,6 @@ end
 ;new code  ---------------------------------------------------------------------------------------------------------
 
 
-
 to addFriends
   
    if (count friendList >= fmax) [ stop ]
@@ -321,7 +325,6 @@ to addFriends
     ]  
   ] 
 end
-
 
 
 to sendmsg
@@ -409,6 +412,37 @@ to readContent
   ]
 end
 
+
+
+;This function is all about following another follower agent that is in freindlist if there is any
+; runs only in wander state to not get in conflict with the follwoing behavier for the influencer
+to followfriendAgent
+  ; Follows the nearest friend from friendList
+  
+  ; Check that friendList is not empty
+  if not any? turtle-set friendList [ stop ]
+  
+  ; Pick the nearest friend from the friendList
+  let target min-one-of turtle-set friendList [distance myself]
+  
+  if target = nobody [ stop ]
+  
+  ; Move toward target only if not on the same spot
+  if ([list xcor ycor] of self) != ([list xcor ycor] of target) [
+    set heading towards target
+    fd 1
+  ]
+  
+  ; Check if we've reached the friend
+  set nearbyAgents other turtles in-radius vision
+  if any? nearbyAgents [
+    if member? target nearbyAgents [
+      set friendFound true
+    ]
+  ]
+  
+  if Debug [ print (word "Follower " self " försöker nå vän " target) ]
+end
 
 
 ;***************************end influencer selection ******************************************************************************************************
