@@ -22,6 +22,8 @@
 ; 20260513    Created new function called readmsg                                                                Rachid
 ; 20260514    Created new function called readcontent                                                            Rachid                                                               
 ; 20260514    integrated the social part into main code                                                          Mohammad Baraa Said
+; 20260515    Created new function called followfriend                                                           Rachid
+; 20260515
 ;
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
@@ -168,7 +170,8 @@ to execute-hybrid-state
     followfriend
     ;readContent
     ;sendmsg
-    ;readmsg        
+    ;readmsg   
+    readContent
   ]
 
   if state = "state_follow"[ 
@@ -176,7 +179,8 @@ to execute-hybrid-state
     
     ;readContent
     ;sendmsg
-    ;readmsg          
+    ;readmsg 
+    readContent
   ]
 
   if state = "state_defend-loyalty" [ 
@@ -461,21 +465,50 @@ to readContent
 end
 
 
-; to do 
-; 
 to react-to-content [content-type sender-agent]
-  ifelse content-type = "2" [
-    ; TODO
-  ] [
-  ifelse content-type = "3" [
-    ; TODO
-  ] [
-  ifelse content-type = "4" [
-    ; TODO
-  ] [
-   
-  ]]]
+
+  if content-type = "2" [
+    if following = sender-agent [
+      set boredom max list 0 (boredom - 40)
+      set excitement excitement + 20
+      ;print (word "Follower " who ": spännande post från " [who] of sender-agent " → boredom=" boredom)
+    ]
+    if following = nobody [
+      if random-float 1 < 0.1 [
+        set following sender-agent
+        set target-state "state_follow"
+        set loyaltyTimer 0
+        set switchCooldown 15
+        print (word "Follower " who ": lockades → följer nu influencer " [who] of sender-agent)
+      ]
+    ]
+  ]
+
+  if content-type = "3" [
+    if following = sender-agent [
+      set boredom 0
+      set target-state "state_defend-loyalty"
+      ;print (word "Follower " who ": drama! försvarar influencer " [who] of sender-agent)
+    ]
+    if following != sender-agent and following != nobody [
+      if random-float 1 < 0.15 [
+        set following nobody
+        set target-state "state_wander"
+        set switchCooldown 10
+        ;print (word "Follower " who ": störd → vandrar nu")
+      ]
+    ]
+  ]
+
+  if content-type = "4" [
+    if following = sender-agent [
+      set boredom boredom + 25
+     ; print (word "Follower " who ": tråkigt post → boredom=" boredom)
+    ]
+  ]
+
 end
+
 ;***************************end influencer selection ******************************************************************************************************
 ;**********************************************************************************************************************************************************
 ; CONFLICT / STEALING SUPPORT
@@ -516,3 +549,8 @@ to update-resistance
 end
 ;***************************end help functions ************************************************************************************************************
 ;**********************************************************************************************************************************************************
+
+
+
+
+
