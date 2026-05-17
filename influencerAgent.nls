@@ -326,7 +326,7 @@ end
 to post-content
   let post-msg create-message "content-post"
   set post-msg add-content word contentType "" post-msg
-  show post-msg
+  ;show post-msg
   broadcast-to followers post-msg self
   
 end

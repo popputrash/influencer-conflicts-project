@@ -23,7 +23,8 @@
 ; 20260514    Created new function called readcontent                                                            Rachid                                                               
 ; 20260514    integrated the social part into main code                                                          Mohammad Baraa Said
 ; 20260515    Created new function called followfriend                                                           Rachid
-; 20260515
+; 20260517    Created new function called react to content                                                       Rachid 
+; 20260517    Bug in readcontent                                                                                 Rachid
 ;
 ;********************end logbook ************************************************************************************************************************
 ;*********************************************************************************************************************************************************
@@ -44,14 +45,13 @@ followers-own [
     friend            ; potential friend to add or follow
     friendList        ; agent set of other citizen agents that are considered as friends
     friends           ; list with numbers of agents (same as friendList, but as a sorted list)
-    followFlag        ;Flag to indicate the situation of following a friend
-    collectFriends    ;Flag to indicate the situation of adding agents to friendList
+   
     friendFound       ; Flag to indicate when friend has been found
     nearbyAgents
     vision
     inbox             ; list of messages received from friends
-    lastMessage       ; last message this agent sent
-    favContent
+   
+    
    
   
    
@@ -76,13 +76,15 @@ to setup-followerAgent
     set global-scan-timer random 200  
     set excitement random 100
     update-follower-color
+  
 
-    set friend []
+  
     
     set friendList turtle-set []
     set friends ""
     set vision 7 ;
     set fmax 10  ; max antal vänner
+    set friend nobody
 
     
     
@@ -168,19 +170,19 @@ to execute-hybrid-state
   if state = "state_wander"[ 
     state_wander 
     followfriend
-    ;readContent
+    readContent
     ;sendmsg
     ;readmsg   
-    readContent
+   
   ]
 
   if state = "state_follow"[ 
     state_follow
     
-    ;readContent
+    readContent
     ;sendmsg
     ;readmsg 
-    readContent
+    
   ]
 
   if state = "state_defend-loyalty" [ 
@@ -389,25 +391,23 @@ to sendmsg
   ;we first check if we have any friends in the freind list before we begin
   ;after the check for friends we create the msg and sends only to the follower agent simple and clean work.
   ;last part is teh print we can remove beacuse i used it to debug.
+ 
   
   if not any? turtle-set friendList [ stop ]
   if ticks mod 100 != 0 [ stop ]
+  if following = nobody [ stop ]  ; ← lägg till denna rad
   
   let me self
-  let msgContent "Hej! ska vi följa Nicki Minaj"  
+  let msgContent (word "Following influencer " [who] of following)
   
   ask turtle-set friendList with [breed = followers] [ 
     let msg create-message "" 
-    
     set msg add-receiver [who] of myself msg
     set msg add-content msgContent msg  
     send msg
     
-    
-    ; print (word "Follower " me " skickade: " msgContent)
   ]
 end
-
 
 
 to readmsg
@@ -445,23 +445,21 @@ end
 to readContent
   if empty? incoming-queue [ stop ]
   
-  let msg first incoming-queue
-  set incoming-queue but-first incoming-queue
-  
- 
-  let sender-id get-sender msg
-  let content get-content msg
-  
-
-  let sender-agent turtle (read-from-string sender-id)
-  if sender-agent = nobody [ stop ]
-  if not ([breed] of sender-agent = influencers) [ stop ]
-  
-  
-  let content-type content
-  
-  react-to-content content-type sender-agent
-  
+  while [not empty? incoming-queue] [
+    let msg first incoming-queue
+    set incoming-queue but-first incoming-queue
+    
+    let sender-id get-sender msg
+    let content get-content msg
+    
+    ;print (word "Follower " who " fick meddelande från " sender-id " med innehåll: " content)
+    
+    let sender-agent turtle (read-from-string sender-id)
+    if sender-agent = nobody [ stop ]
+    if not ([breed] of sender-agent = influencers) [ stop ]
+    
+    react-to-content content sender-agent
+  ]
 end
 
 
@@ -479,7 +477,7 @@ to react-to-content [content-type sender-agent]
         set target-state "state_follow"
         set loyaltyTimer 0
         set switchCooldown 15
-        print (word "Follower " who ": lockades → följer nu influencer " [who] of sender-agent)
+        ;print (word "Follower " who ": lockades → följer nu influencer " [who] of sender-agent)
       ]
     ]
   ]
@@ -503,7 +501,7 @@ to react-to-content [content-type sender-agent]
   if content-type = "4" [
     if following = sender-agent [
       set boredom boredom + 25
-     ; print (word "Follower " who ": tråkigt post → boredom=" boredom)
+      ;print (word "Follower " who ": tråkigt post → boredom=" boredom)
     ]
   ]
 
