@@ -50,6 +50,9 @@ followers-own [
     nearbyAgents
     vision
     inbox             ; list of messages received from friends
+  
+    favcontent 
+  
    
     
    
@@ -76,6 +79,8 @@ to setup-followerAgent
     set global-scan-timer random 200  
     set excitement random 100
     update-follower-color
+    
+    set favContent 1 + random 5
   
 
   
@@ -83,12 +88,12 @@ to setup-followerAgent
     set friendList turtle-set []
     set friends ""
     set vision 7 ;
-    set fmax 10  ; max antal vänner
+    set fmax 3  ; max antal vänner
     set friend nobody
 
     
     
-    set incoming-queue []      ; MUST EXSIST TO FUNCTION
+    set incoming-queue []      
   ]
 end ;setup-agentBs
 
@@ -171,22 +176,28 @@ to execute-hybrid-state
     state_wander 
     followfriend
     readContent
-    ;sendmsg
-    ;readmsg   
+    sendmsg
+     
    
   ]
 
   if state = "state_follow"[ 
     state_follow
-    
     readContent
-    ;sendmsg
-    ;readmsg 
+    sendmsg
+    
     
   ]
 
   if state = "state_defend-loyalty" [ 
     state_defend-loyalty  
+  ]
+  
+  
+  if state = "watch_conflict"[
+    state_watch-conflict
+  
+  
   ]
 end
 ;***************************end finite state machine ******************************************************************************************************
@@ -280,6 +291,9 @@ to evaluate-proactive-layer
       ]
     ]
    ]
+  
+  
+
 end
 ;*****************************************end Layers ******************************************************************************************************
 ;**********************************************************************************************************************************************************
@@ -292,6 +306,8 @@ to try-adopt-influencer
     update-resistance  update-follower-color
   ]
 end
+
+
 
 to reevaluate-influencer-choice
   if following = nobody or switchCooldown > 0 [ stop ]
@@ -310,6 +326,27 @@ to reevaluate-influencer-choice
     set following best  set loyaltyTimer 0  set switchCooldown 30
   ]
 end
+
+
+
+to state_watch-conflict
+
+  ; stå still och titta
+  rt random 20 - random 20
+
+  ; lämna inte influencer
+  set boredom 0
+
+  ; om konflikten är över gå tillbaka
+  if following != nobody [
+    if not [conflictActive] of following [
+      set target-state "state_follow"
+    ]
+  ]
+
+end
+
+
 
 
 to addFriends
@@ -395,13 +432,15 @@ to sendmsg
   
   if not any? turtle-set friendList [ stop ]
   if ticks mod 100 != 0 [ stop ]
-  if following = nobody [ stop ]  ; ← lägg till denna rad
+  if following = nobody [ stop ]  
+  
   
   let me self
   let msgContent (word "Following influencer " [who] of following)
+ ; print msgContent
   
   ask turtle-set friendList with [breed = followers] [ 
-    let msg create-message "" 
+    let msg create-message "Inform" 
     set msg add-receiver [who] of myself msg
     set msg add-content msgContent msg  
     send msg
@@ -410,33 +449,9 @@ to sendmsg
 end
 
 
-to readmsg
-  let msg get-message
-  if msg = "no_message" [ stop ]
-  
-  ;here is the important part 
-  ;we get the msg---read the massage--- and reaply to the massage 
-  
-  let performative get-performative msg
-  let sender get-sender msg
-  let content get-content msg  
-  
-  if performative = "" [
-    
-   ;simple print to show the communcaation in the terminal
-    ;print (word "Follower " self " fick meddelande från Follower " sender)
-    ;print (word "Innehåll: " content)
-    
-    ;;answer
-    let replyContent "Ja"  
-    let reply create-reply "hej" msg
-    set reply add-content replyContent reply
-    send reply
-    
-   
-    ;print (word "Follower " self " svarade: " replyContent)
-  ]
-end
+
+
+
 
 
 ;This is not finished yet i need more time to figur out how to react to content 
@@ -444,66 +459,57 @@ end
 
 to readContent
   if empty? incoming-queue [ stop ]
-  
+
   while [not empty? incoming-queue] [
+
     let msg first incoming-queue
     set incoming-queue but-first incoming-queue
-    
+
     let sender-id get-sender msg
     let content get-content msg
-    
-    ;print (word "Follower " who " fick meddelande från " sender-id " med innehåll: " content)
-    
     let sender-agent turtle (read-from-string sender-id)
-    if sender-agent = nobody [ stop ]
-    if not ([breed] of sender-agent = influencers) [ stop ]
-    
-    react-to-content content sender-agent
+
+    ; influencer content
+    if get-performative msg = "content-post" [
+      if sender-agent != nobody [
+        if [breed] of sender-agent = influencers [
+          react-to-content content sender-agent
+          
+        ]
+      ]
+    ]
+
+    ; follower inform message
+    if get-performative msg = "inform" [
+     if sender-agent != nobody [
+    if [breed] of sender-agent = followers [
+
+      set following [following] of sender-agent  
+      set loyaltyTimer 0
+      set switchCooldown 15
+          
+        ]
+      ]
+    ]
   ]
 end
 
 
+; favcontent- 
+; favcontent ska ha en random siffra 
+; vi jämför om det favorit content höja exceitemnt 
+; om det är inte höj boredom
+; 
+
 to react-to-content [content-type sender-agent]
 
-  if content-type = "2" [
-    if following = sender-agent [
-      set boredom max list 0 (boredom - 40)
-      set excitement excitement + 20
-      ;print (word "Follower " who ": spännande post från " [who] of sender-agent " → boredom=" boredom)
-    ]
-    if following = nobody [
-      if random-float 1 < 0.1 [
-        set following sender-agent
-        set target-state "state_follow"
-        set loyaltyTimer 0
-        set switchCooldown 15
-        ;print (word "Follower " who ": lockades → följer nu influencer " [who] of sender-agent)
-      ]
-    ]
-  ]
+  if (read-from-string content-type) = favContent [
 
-  if content-type = "3" [
-    if following = sender-agent [
-      set boredom 0
-      set target-state "state_defend-loyalty"
-      ;print (word "Follower " who ": drama! försvarar influencer " [who] of sender-agent)
-    ]
-    if following != sender-agent and following != nobody [
-      if random-float 1 < 0.15 [
-        set following nobody
-        set target-state "state_wander"
-        set switchCooldown 10
-        ;print (word "Follower " who ": störd → vandrar nu")
-      ]
-    ]
-  ]
+    set excitement excitement + 45
+    set boredom boredom - 25
 
-  if content-type = "4" [
-    if following = sender-agent [
-      set boredom boredom + 25
-      ;print (word "Follower " who ": tråkigt post → boredom=" boredom)
     ]
-  ]
+  
 
 end
 
