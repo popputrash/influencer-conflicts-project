@@ -313,6 +313,7 @@ to followfriend
   if ([list xcor ycor] of self) != ([list xcor ycor] of target) [
     set heading towards target
     fd 1
+    bounce-at-boundary
   ]
   
   ; Check if we've reached the friend
@@ -327,6 +328,7 @@ to followfriend
         set following [following] of target  ; kopiera vännens influencer
         set loyaltyTimer 0
         set switchCooldown 15
+        
       ]
     ]
   ]
