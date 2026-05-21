@@ -216,14 +216,14 @@ end ; - to go part
       </pen>
     </plot>
     <switch x="240" y="371" height="40" on="false" variable="ActivateTestCase" width="123" display="ActivateTestCase"></switch>
-    <switch x="239" y="325" height="40" on="true" variable="Debug" width="69" display="Debug"></switch>
+    <switch x="239" y="325" height="40" on="false" variable="Debug" width="69" display="Debug"></switch>
     <button x="237" y="640" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="101" display="setup">setup
 </button>
     <button x="352" y="639" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="95" display="go">go</button>
     <switch x="238" y="416" height="40" on="false" variable="show-intentions" width="161" display="show-intentions"></switch>
-    <slider x="236" step="1" y="511" max="100" width="250" display="Number_Influencers" height="50" min="0" direction="Horizontal" default="3.0" variable="Number_Influencers"></slider>
+    <slider x="236" step="1" y="511" max="100" width="250" display="Number_Influencers" height="50" min="0" direction="Horizontal" default="2.0" variable="Number_Influencers"></slider>
     <switch x="238" y="465" height="40" on="false" variable="show_messages" width="165" display="show_messages"></switch>
-    <slider x="236" step="1" y="567" max="1000" width="250" display="Number_AgentB" height="50" min="0" direction="Horizontal" default="342.0" variable="Number_AgentB"></slider>
+    <slider x="236" step="1" y="567" max="1000" width="250" display="Number_AgentB" height="50" min="0" direction="Horizontal" default="315.0" variable="Number_AgentB"></slider>
   </widgets>
   <info>## WHAT IS IT?
 

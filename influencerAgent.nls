@@ -42,6 +42,13 @@ influencers-own [
   conflictAttackerFlag 
   
   
+  collabActive
+  collabTarget
+  collabDuration
+  collabAcceptants
+  collabNumOfRecievers
+  collabProposalAnswers
+  
   ; Decision thresholds
   minEngagementThreshold    ; minimum acceptable engagement level
   followerLossThreshold     ; rate of follower loss that triggers conflict
@@ -91,6 +98,8 @@ to setup-influencerAgents
     set followerHistory []           ; empty history at start
     set engagementHistory []
     
+    set collabAcceptants []
+    
     ; Initialize conflict state
     set conflictActive false
     set conflictIntensity 0
@@ -127,7 +136,11 @@ end
 to hybrid_influencer
   sense-environment-influencer
   
+  evaluateMessages
+  
   ; REACTIVE LAYER
+  
+  
   if conflictAttackerFlag [
     set current-state "IN_CONFLICT"
     set conflictActive true
@@ -151,23 +164,47 @@ to execute-fsm-influencer
   (ifelse current-state = "NORMAL" [
     maintain-status-influencer
     move-normal-behavior
-    (ifelse 
-      engagementLevel < minEngagementThreshold and engagementLevel > 0 [
+    (ifelse engagementLevel < minEngagementThreshold and engagementLevel > 0 [
       initiate-conflict-influencer "low-engagement"
-      if conflictActive [ set current-state "IN_CONFLICT" ]
-    ]  
-    followerLossRate > 0.5 [
-      if not conflictActive [initiate-conflict-influencer "panic conflict"]
-      if conflictActive [ set current-state "IN_CONFLICT" ]
-    ]
-    ticksSinceStableFollowing > stableFollowingTimeout[
-      show "test"
-        if not conflictActive [initiate-conflict-influencer "stable following"]
-      if conflictActive [ set current-state "IN_CONFLICT" ]
-    ]
-      )
+        
+      if conflictActive [ 
+          set current-state "IN_CONFLICT" ]
+      ]  
+      
+      followerLossRate > 0.5 [
+        if not conflictActive [initiate-conflict-influencer "panic conflict"]
+        if conflictActive [ set current-state "IN_CONFLICT" ]
+      ]
+      
+      
+    ticksSinceStableFollowing > stableFollowingTimeout[        
+        (ifelse any? getCollabCandidates and random-float 1 < 0.4 [
+          sendCollabRequest
+          set current-state "SCOUTING"
+          ]
+          [      
+          if not conflictActive [initiate-conflict-influencer "stable following"]
+          if conflictActive [ set current-state "IN_CONFLICT" ]
+       ])
+    ])
   ]
   (current-state = "SCOUTING")[
+      move-normal-behavior
+      set collabDuration collabDuration + 1
+      (ifelse collabNumOfRecievers = collabProposalAnswers and not empty? collabAcceptants[
+       set collabTarget influencer read-from-string one-of collabAcceptants
+        show collabTarget
+        let dur random 20
+        send-collab-confirmation [who] of collabTarget dur
+        set collabDuration dur
+        set current-state "IN_COLLAB"
+      ] collabDuration > 50 or (collabNumOfRecievers = collabProposalAnswers and empty? collabAcceptants) [
+        set current-state "NORMAL"
+        set collabAcceptants []
+        set collabProposalAnswers 0
+        set collabNumOfRecievers 0
+        set collabDuration 0
+      ])
       
   ]
     
@@ -180,7 +217,12 @@ to execute-fsm-influencer
       
   ]
   (current-state = "IN_COLLAB")[
-      ;TODO
+      execute-collab-influencer
+      move-collab-behavior
+      if collabDuration <= 0 [
+        set current-state "NORMAL"
+        set collabTarget nobody
+      ]
       
   ]
   (current-state = "RECOVERY")[
@@ -224,7 +266,7 @@ to sense-environment-influencer
   ]
   
   
-   ifelse followerLossRate != 0 [
+   ifelse followerLossRate > 0.05 [
         set ticksSinceStableFollowing 0
       ]
       [
@@ -294,15 +336,62 @@ to execute-conflict-influencer
   ]
 end
 
-to sendCollabRequest
+to execute-collab-influencer
+  ; 1. Decrease duration
+  set collabDuration collabDuration - 1
   
+  ; 2. Gain reputation slowly
+  if reputation < 100 [
+    set reputation reputation + 0.5
+  ]
   
+  ; 3. Post more frequently
+  let collabPostRate floor (postRate / 2)
+  if collabPostRate <= 0 [ set collabPostRate 1 ] 
+  if ticks mod collabPostRate = 0 [
+    post-content
+  ]
 end
+
+to move-collab-behavior
+  ifelse collabTarget != nobody and is-turtle? collabTarget [
+    ; Move towards the collaboration target
+    set heading towards collabTarget
+    if distance collabTarget > 1 [
+      forward moveSpeed
+    ]
+  ] [
+    ; Fallback
+    move-normal-behavior
+  ]
+end
+
+to sendCollabRequest
+  set collabAcceptants []
+  set collabProposalAnswers 0
+  set collabDuration 0
+  
+  let candidates getCollabCandidates
+  let collab-msg create-message "cfp"
+  set collab-msg add-content "collab?" collab-msg
+  set collab-msg add-multiple-receivers sort [who] of candidates collab-msg
+  
+  
+  send collab-msg
+  set collabNumOfRecievers length sort [who] of candidates
+  show collabNumOfRecievers
+end
+
+to-report getCollabCandidates
+  let fc followerCount
+  let cont contentType
+  report other influencers with [followerCount >= fc and cont = contentType]
+end
+
 
 
 to maintain-status-influencer
   ; Normal operations: reputation slowly recovers if not in conflict
-  
   ;TODO : post content
   
   if reputation < 80 [
@@ -335,6 +424,79 @@ to post-content
   broadcast-to followers post-msg self
   
 end
+
+
+to evaluateMessages
+  while [not empty? incoming-queue] [
+    let msg first incoming-queue
+    set incoming-queue but-first incoming-queue
+
+    let sender-id get-sender msg
+    let content get-content msg
+    let sender-agent turtle (read-from-string sender-id)
+    let performative get-performative msg
+   
+    (ifelse performative = "cfp" [
+      (ifelse evaluate-collab-request sender-id [
+        send-collab-accept sender-id
+      ]
+      [
+        send-collab-rejection sender-id
+      ])
+      ]
+      performative = "accept-proposal"[
+        set collabProposalAnswers collabProposalAnswers + 1
+        show sender-id
+        set collabAcceptants lput sender-id collabAcceptants
+      ]
+      
+      performative = "reject-proposal"[
+        set collabProposalAnswers collabProposalAnswers + 1
+      ]
+      performative = "confirmation"[
+        set current-state "IN_COLLAB"
+        let content-list string-to-list content
+        if length content-list > 2 [
+          set collabDuration read-from-string item 2 content-list
+        ]
+      ]
+    )
+  ]
+end
+
+to-report evaluate-collab-request [sender-id]
+  let sender-content-type [contentType] of influencer read-from-string sender-id
+  let sender-follower-count [followerCount] of influencer read-from-string sender-id
+  if sender-content-type = contentType and sender-follower-count / followerCount > 0.5 [
+    report true
+  ]
+  if sender-follower-count / followerCount > 0.85 [
+    report true
+  ]
+  report false
+end
+
+to send-collab-accept [receiver]
+  let msg create-message "accept-proposal"
+  set msg add-content "accept collab" msg
+  set msg add-receiver receiver msg
+  send msg
+end
+
+to send-collab-rejection [receiver]
+  let msg create-message "reject-proposal"
+  set msg add-content "reject collab" msg
+  set msg add-receiver receiver msg
+  send msg
+end
+
+to send-collab-confirmation [receiver duration]
+  let msg create-message "confirmation"
+  set msg add-content (word "confirming collab " duration) msg
+  set msg add-receiver receiver msg
+  send msg
+end
+
 
 ;***************************end conflict mechanics ************************************************************
 
@@ -419,7 +581,28 @@ to update-visualization-influencer
   ]
 end
 
-
+; HELPER
+to-report string-to-list [s]
+  let result []
+  let current-word ""
+  let i 0
+  while [i < length s] [
+    let char item i s
+    ifelse char = " " [
+      if current-word != "" [
+        set result lput current-word result
+        set current-word ""
+      ]
+    ] [
+      set current-word word current-word char
+    ]
+    set i i + 1
+  ]
+  if current-word != "" [
+    set result lput current-word result
+  ]
+  report result
+end
 
 ;***************************end action execution ************************************************************
 
