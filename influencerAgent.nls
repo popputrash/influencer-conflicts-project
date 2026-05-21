@@ -161,14 +161,13 @@ to execute-fsm-influencer
       if conflictActive [ set current-state "IN_CONFLICT" ]
     ]
     ticksSinceStableFollowing > stableFollowingTimeout[
-      initiate-conflict-influencer "stable following"
+      show "test"
+        if not conflictActive [initiate-conflict-influencer "stable following"]
       if conflictActive [ set current-state "IN_CONFLICT" ]
     ]
       )
   ]
   (current-state = "SCOUTING")[
-      ;kolla andra stora influencers vilket typ av content de postar inom
-      ;beräkna om de är värt att byta typ av content
       
   ]
     
@@ -295,6 +294,12 @@ to execute-conflict-influencer
   ]
 end
 
+to sendCollabRequest
+  
+  
+end
+
+
 to maintain-status-influencer
   ; Normal operations: reputation slowly recovers if not in conflict
   
@@ -413,6 +418,8 @@ to update-visualization-influencer
     set size 2 + (followerCount / 100)
   ]
 end
+
+
 
 ;***************************end action execution ************************************************************
 

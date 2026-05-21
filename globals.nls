@@ -23,6 +23,7 @@ globals [
   time-passed              ;TEXT STRING SHOWING HOW MUCH TIME HAS BEEN SIMULATED
   weeklyFlag
   dailyFlag
+  collabNumber
   ;
   ;------ termination variable
   TERMINATE
