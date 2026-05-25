@@ -42,6 +42,6 @@ to setup-environment
   ; setup of all patches
     ask patches [
     set region "empty"
-    set neighborhood patches in-radius 2
+    set pcolor black
   ]
 end ;setup-environment

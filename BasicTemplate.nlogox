@@ -91,7 +91,7 @@ to setup
   ;-------- setup followerAgent--------------:
   setup-followerAgent ; code defined in the include-file "agentBs.nls
 
-  setup-adminAgents ; <--- NY RAD: Skapar din Agent C i världen
+;  setup-adminAgents ; <--- NY RAD: Skapar din Agent C i världen
 
   ;-------- setup test cases
   ;if activateTestCase [setup-testagents]; code defined in the include-file "testcases.nls
@@ -221,9 +221,9 @@ end ; - to go part
 </button>
     <button x="352" y="639" height="40" disableUntilTicks="false" forever="true" kind="Observer" width="95" display="go">go</button>
     <switch x="238" y="416" height="40" on="false" variable="show-intentions" width="161" display="show-intentions"></switch>
-    <slider x="236" step="1" y="511" max="100" width="250" display="Number_Influencers" height="50" min="0" direction="Horizontal" default="2.0" variable="Number_Influencers"></slider>
+    <slider x="236" step="1" y="511" max="100" width="250" display="Number_Influencers" height="50" min="0" direction="Horizontal" default="5.0" variable="Number_Influencers"></slider>
     <switch x="238" y="465" height="40" on="false" variable="show_messages" width="165" display="show_messages"></switch>
-    <slider x="236" step="1" y="567" max="1000" width="250" display="Number_AgentB" height="50" min="0" direction="Horizontal" default="315.0" variable="Number_AgentB"></slider>
+    <slider x="236" step="1" y="567" max="1000" width="250" display="Number_AgentB" height="50" min="0" direction="Horizontal" default="162.0" variable="Number_AgentB"></slider>
   </widgets>
   <info>## WHAT IS IT?
 
