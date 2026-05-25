@@ -194,7 +194,7 @@ to execute-fsm-influencer
       (ifelse collabNumOfRecievers = collabProposalAnswers and not empty? collabAcceptants[
        set collabTarget influencer read-from-string one-of collabAcceptants
         show collabTarget
-        let dur random 500
+        let dur random 20
         send-collab-confirmation [who] of collabTarget dur
         set collabDuration dur
         set current-state "IN_COLLAB"
@@ -453,7 +453,6 @@ to evaluateMessages
       performative = "reject-proposal"[
         set collabProposalAnswers collabProposalAnswers + 1
       ]
-      
       performative = "confirmation"[
         set current-state "IN_COLLAB"
         let content-list string-to-list content

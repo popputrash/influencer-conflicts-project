@@ -181,7 +181,7 @@ end ; - to go part
 ;***************************end to go part ******************************************************************************************************************
 ;************************************************************************************************************************************************************]]></code>
   <widgets>
-    <view x="646" wrappingAllowedX="false" y="21" frameRate="60.0" minPycor="0" height="599" showTickCounter="true" patchSize="17.5224" fontSize="10" wrappingAllowedY="false" width="1178" tickCounterLabel="ticks" maxPycor="33" updateMode="1" maxPxcor="66" minPxcor="0"></view>
+    <view x="646" wrappingAllowedX="false" y="21" frameRate="60.0" minPycor="0" height="599" showTickCounter="true" patchSize="17.5224" fontSize="10" wrappingAllowedY="false" width="1178" tickCounterLabel="ticks" maxPycor="33" updateMode="0" maxPxcor="66" minPxcor="0"></view>
     <note x="1594" y="652" backgroundDark="0" fontSize="13" width="240" markdown="false" height="27" textColorDark="-1" textColorLight="-16777216" backgroundLight="0">_________ Simulation Recorder________</note>
     <button x="1592" y="680" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="67" display="start">start-recorder</button>
     <button x="1593" y="726" height="40" disableUntilTicks="false" forever="false" kind="Observer" width="68" display="reset">reset-recorder</button>
