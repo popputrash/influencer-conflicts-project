@@ -93,7 +93,7 @@ to setup
   ;-------- setup followerAgent--------------:
   setup-followerAgent ; code defined in the include-file "agentBs.nls
 
-;  setup-adminAgents ; <--- NY RAD: Skapar din Agent C i världen
+  setup-adminAgents ; <--- NY RAD: Skapar din Agent C i världen
 
   ;-------- setup test cases
   ;if activateTestCase [setup-testagents]; code defined in the include-file "testcases.nls
