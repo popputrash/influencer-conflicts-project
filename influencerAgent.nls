@@ -117,7 +117,7 @@ to setup-influencerAgents
     set stableFollowingTimeout random 800
     
     ; Initialize movement
-    set moveSpeed 0.2
+    set moveSpeed speed
     set targetX random max-pxcor
     set targetY random max-pycor
     move-to patch targetX targetY
@@ -140,11 +140,25 @@ to hybrid_influencer
   
   ; REACTIVE LAYER
   
-  
   if conflictAttackerFlag [
-    set current-state "IN_CONFLICT"
+    if current-state != "IN_COLLAB" and current-state != "SCOUTING" [
+      set current-state "IN_CONFLICT"
+    ]
     set conflictActive true
     set conflictAttackerFlag false
+  ]
+  
+  ; MULTITASKING FIX: Ensure conflict timer counts down even if they are in another state like IN_COLLAB
+  if conflictActive and current-state != "IN_CONFLICT" [
+    set conflictDuration conflictDuration - 1
+    if conflictDuration <= 0 [
+      if any? my-conflicts [
+        ask my-conflicts [ die ]
+      ]
+      set conflictActive false
+      set conflictTarget nobody
+      set conflictIntensity 0
+    ]
   ]
   
     if ticks mod postRate = 0[
@@ -194,8 +208,14 @@ to execute-fsm-influencer
       (ifelse collabNumOfRecievers = collabProposalAnswers and not empty? collabAcceptants[
        set collabTarget influencer read-from-string one-of collabAcceptants
         show collabTarget
-        let dur random 500
+        let dur random 100
         send-collab-confirmation [who] of collabTarget dur
+        
+        create-collab-with collabTarget [
+          set color blue
+          set thickness 0.2
+        ]
+        
         set collabDuration dur
         set current-state "IN_COLLAB"
       ] collabDuration > 50 or (collabNumOfRecievers = collabProposalAnswers and empty? collabAcceptants) [
@@ -220,6 +240,9 @@ to execute-fsm-influencer
       execute-collab-influencer
       move-collab-behavior
       if collabDuration <= 0 [
+        if any? my-collabs [ 
+          ask my-collabs [ die ] 
+        ]
         set current-state "NORMAL"
         set collabTarget nobody
       ]
@@ -281,7 +304,7 @@ end
 
 to-report get-conflict-candidate
   let fc followerCount
-  let candidates other influencers with [conflictActive != true and followerCount > fc]
+  let candidates other influencers with [conflictActive != true and current-state != "IN_COLLAB" and followerCount > fc]
   
   report one-of candidates
 end
@@ -296,6 +319,12 @@ to initiate-conflict-influencer [conflict-reason]
       ; Set own (attacker) state
       set conflictTarget candidate
       set conflictActive true
+      
+      create-conflict-to conflictTarget [
+        set color red
+        set thickness 0.2
+      ]
+      
       let duration 5 + random 30 
       let intensity 70 + random 30
       set conflictIntensity intensity
@@ -330,6 +359,9 @@ to execute-conflict-influencer
   
   ; When conflict duration ends, return to normal
   if conflictDuration <= 0 [
+    if any? my-conflicts [
+      ask my-conflicts [ die ]
+    ]
     set conflictActive false
     set conflictTarget nobody
     set conflictIntensity 0
@@ -355,9 +387,18 @@ end
 
 to move-collab-behavior
   ifelse collabTarget != nobody and is-turtle? collabTarget [
-    ; Move towards the collaboration target
-    set heading towards collabTarget
-    if distance collabTarget > 1 [
+    let dist distance collabTarget
+    ifelse dist > 3 [
+      ; Move towards the collaboration target
+      set heading towards collabTarget
+      forward moveSpeed
+    ] [
+      ; Circle around each other
+      ifelse dist > 0 [
+        set heading (towards collabTarget + 90)
+      ] [
+        set heading random 360
+      ]
       forward moveSpeed
     ]
   ] [
@@ -385,7 +426,10 @@ end
 to-report getCollabCandidates
   let fc followerCount
   let cont contentType
-  report other influencers with [followerCount >= fc and cont = contentType]
+  report other influencers with [
+    current-state != "IN_COLLAB" and 
+    (contentType = cont or followerCount >= (fc * 0.8))
+  ]
 end
 
 
@@ -456,9 +500,34 @@ to evaluateMessages
       
       performative = "confirmation"[
         set current-state "IN_COLLAB"
+        set collabTarget influencer read-from-string sender-id
         let content-list string-to-list content
         if length content-list > 2 [
           set collabDuration read-from-string item 2 content-list
+        ]
+      ]
+      
+      performative = "inform" [
+        if content = "warning-low-reputation" [
+          if current-state != "IN_COLLAB" [
+            set current-state "RECOVERY"
+          ]
+        ]
+        
+        if content = "warning-near-ban" [
+          ; Drop all drama immediately to dodge the ban
+          if conflictActive [
+            if any? my-conflicts [
+              ask my-conflicts [ die ]
+            ]
+            set conflictActive false
+            set conflictTarget nobody
+            set conflictIntensity 0
+            set conflictDuration 0
+          ]
+          if current-state != "IN_COLLAB" [
+            set current-state "RECOVERY"
+          ]
         ]
       ]
     )
@@ -468,6 +537,11 @@ end
 to-report evaluate-collab-request [sender-id]
   let sender-content-type [contentType] of influencer read-from-string sender-id
   let sender-follower-count [followerCount] of influencer read-from-string sender-id
+  
+  if followerCount = 0 [
+    report true ; If I have no followers, any collab is a good collab!
+  ]
+  
   if sender-content-type = contentType and sender-follower-count / followerCount > 0.5 [
     report true
   ]

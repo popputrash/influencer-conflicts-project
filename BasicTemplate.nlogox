@@ -52,6 +52,8 @@ extensions [
 breed [followers follower]  ; to be replaced with the breeds in your project
 breed [admin-Agents adminAgent]
 breed [influencers influencer]
+directed-link-breed [ conflicts conflict ]
+undirected-link-breed [ collabs collab ]
 
  
 ;******************** end breeds *************************************************************************************************************************
