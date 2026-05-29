@@ -443,12 +443,7 @@ to maintain-status-influencer
   ]
   
   ; Reputation affects follower retention (followers leave with probability based on low reputation)
-  if reputation < 40 [
-    let departure-chance (1 - (reputation / 100)) * 0.1
-    ask followers with [following = myself and random-float 1 < departure-chance] [
-      set following nobody
-    ]
-  ]
+
 end
 
 to recover-status-influencer
