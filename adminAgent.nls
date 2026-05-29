@@ -1,5 +1,5 @@
 ; ********************************************************************************************************************************************************
-;*** adminAgent.NLS  (Admin-Agent - Social Architecture for Platform Regulation)                                                          ****
+;*** adminAgent.NLS  (Admin-Agent  Social Architecture for Platform Regulation)                                                          ****
 ;*********************************************************************************************************************************************************
 ; DESCRIPTION OF THE AGENT (SOCIAL ARCHITECTURE)
 ; - An admin agent that operates as a patrolling police car to regulate the social media ecosystem.
@@ -57,7 +57,7 @@ to setup-adminAgents
     set moveToTargetFlag false
     set freezeTargetFlag false
     
-    ; --- SOCIAL DEMO: INKORG ---
+    ; --- SOCIAL DEMO: INKORG för framtida uppgradering om vi ska ha recive ---
     set incoming-queue []            
     ; ---------------------------
   ]
@@ -75,7 +75,7 @@ end
 ; Här tittar agenten på världen innan den fattar beslut.
 to updateEnvironmentInfo_adminAgents
   ask admin-agents [
-    ; Säkerhetskontroll: Om agentens nuvarande mål plötsligt blir ogiltigt (t.ex. bannad av någon annan)
+    ; Säkerhetskontroll: Om agentens nuvarande mål plötsligt blir ogiltigt (ex bannad av någon annan)
     ; måste agenten glömma målet direkt och återgå till patrullering.
     if targetInfluencer != nobody [
       if [is-shadowbanned] of targetInfluencer [
@@ -121,7 +121,7 @@ to State_NarmarSigMal
       set proState "State_Utvarderar"
       set checkTimer 100 
       
-      if Debug [print (word "Admin-Agent: Officiell kontroll inleds vid influencer ID " [who] of targetInfluencer)]
+      print (word "Admin-Agent: Officiell kontroll inleds vid influencer ID " [who] of targetInfluencer)
       ask targetInfluencer [ set is-stopped-by-admin true ]
     ] [
       ; Inte framme: Beordra musklerna att styra mot målet
@@ -138,7 +138,7 @@ to State_Utvarderar
     let target-id [who] of targetInfluencer
     
     if checkTimer mod 25 = 0 and checkTimer > 0 [
-      if Debug [print (word "Admin-Agent: Kontroll pågår... granskar status för influencer ID " target-id)]
+      print (word "Admin-Agent: Kontroll pågår... granskar status för influencer ID " target-id)
     ]
     
     ; =====================================================================
@@ -149,9 +149,9 @@ to State_Utvarderar
     ; Om reputation sjunker under 50 skickas en varning via den officiella strukturen i communication.nls
     if current-reputation < 50 [
       if checkTimer mod 25 = 0 [
-        if Debug [print (word "Admin-Agent (Social): Låg reputation (" current-reputation ") upptäckt! Skickar varning 1 till ID " target-id)]
+        print (word "Admin-Agent (Social): Låg reputation (" current-reputation ") upptäckt! Skickar varning 1 till ID " target-id)
         
-        ; Konstruerar meddelandepaketet enligt lärarens bibliotek:
+        ; Konstruerar meddelandepaketet enligt bibliotek:
         let msg1 create-message "inform"
         set msg1 add-receiver target-id msg1
         set msg1 add-content "warning-low-reputation" msg1
@@ -167,9 +167,9 @@ to State_Utvarderar
     ; Varna om de är inom 15 poäng från gränsen
     if current-intensity > (banThreshold - 15) and current-intensity <= banThreshold [
       if checkTimer mod 25 = 0 [
-        if Debug [print (word "Admin-Agent (Social): Total toxicitet nära gränsen! Skickar varning 2 till ID " target-id)]
+         print (word "Admin-Agent (Social): Total toxicitet nära gränsen! Skickar varning 2 till ID " target-id)
          
-         ; Konstruerar meddelandepaketet enligt lärarens bibliotek:
+         ; Konstruerar meddelandepaketet enligt bibliotek:
          let msg2 create-message "inform"
          set msg2 add-receiver target-id msg2
          set msg2 add-content "warning-near-ban" msg2
@@ -181,17 +181,17 @@ to State_Utvarderar
     ; SLUTGILTIGT DOMSLUT
     ; =====================================================================
     ifelse current-intensity > banThreshold [
-      if Debug [print (word "Beslut: Toxisk gräns (" current-intensity ") nådd! Shadowban utdöms mot influencer ID " target-id)]
+      print (word "Beslut: Toxisk gräns (" current-intensity ") nådd! Shadowban utdöms mot influencer ID " target-id)
       set visitedInfluencers lput targetInfluencer visitedInfluencers
       set proState "State_Shadowbanning"
     ] [
       if checkTimer <= 0 [
         ifelse [conflictActive] of targetInfluencer = true [
-          if Debug [print (word "Beslut: Bra drama upptäckt! Boost utdöms till influencer ID " target-id)]
+          print (word "Beslut: Bra drama upptäckt! Boost utdöms till influencer ID " target-id)
           set visitedInfluencers lput targetInfluencer visitedInfluencers
           set proState "State_Boosting"
         ] [
-          if Debug [print (word "Beslut: Kontroll avslutad. Ingen åtgärd krävs för influencer ID " target-id)]
+          print (word "Beslut: Kontroll avslutad. Ingen åtgärd krävs för influencer ID " target-id)
           set visitedInfluencers lput targetInfluencer visitedInfluencers
           ask targetInfluencer [ set is-stopped-by-admin false ]
           set targetInfluencer nobody
@@ -213,7 +213,7 @@ to State_Shadowbanning
         set moveSpeed 0            
         set engagementRadius 0  
         
-        ; --- BUGGFIX: Nollställ intensiteten så de inte bannas direkt igen ---
+        ; Nollställ intensiteten så de inte bannas direkt igen ---
         set conflictIntensity 0
         ; --------------------------------------------------------------------
       ]
